@@ -14,13 +14,14 @@ The report reaches the maintainers only.
 | Part | Listens on | Who can reach it |
 | --- | --- | --- |
 | Hub, local side (`hub/hub.mjs`) | `127.0.0.1:7717` (`port` in `~/.chums/config.json`) | Processes on this Mac: the channel and hooks of each Claude Code session, the Simulators |
-| Hub, watch side | `127.0.0.1:7718` (`publicPort`) | Only `/v1/…` paths. Reached from the internet through Tailscale Funnel |
+| Hub, watch side | `127.0.0.1:7718` (`publicPort`; `publicHost` can change the address) | Only `/v1/…` paths. Reached from the internet through Tailscale Funnel, or from a network when `publicHost` says so |
 | Tailscale Funnel (`bin/chums-tunnel`) | `https://<machine>.<tailnet>.ts.net` | Anyone on the internet. Funnel forwards HTTPS requests to `127.0.0.1:7718` |
-| Speech to text (`whisperkit-cli serve`) | `localhost:50061` | Processes on this Mac |
+| Speech to text (`whisperkit-cli serve`, or `tools/whisper-server.py` on Linux) | `localhost:50061` | Processes on this Mac |
 | The agents' voices (`tools/kokoro-server.py`) | `127.0.0.1:50062` | Processes on this Mac |
 | Codex agents (`codex app-server`) | Unix sockets in `/tmp/chums-<uid>/`, a folder only your user can open (`0700`, its owner checked) | Your user |
 
-The hub never listens on a non-loopback address. The only way in from outside the Mac is the Funnel URL.
+By default the hub never listens on a non-loopback address, and the only way in from outside the Mac is the Funnel
+URL. Setting `publicHost` (for the Android app on a LAN) opens the watch side, never the local side, to that network.
 
 ## Tokens
 
@@ -81,10 +82,19 @@ If the watch token may have leaked (a lost watch, a shared build, a log or scree
 5. Restart the Claude Code sessions so the channel and hooks read the new `token`: `bin/chums-agents install` for the
    background agents, and any `bin/chums-claude` session in a terminal. Codex agents restart with the hub.
 
+The Android app keeps the URL and the watch token in its private preferences, which are excluded from backups. An
+earlier version of `app/ChumsAndroid` had a watch token written into `HubClient.kt`; it is still in the git history.
+If you ran a hub with that token, rotate it as above.
+
 To take the watch API off the internet at once: `tailscale --socket ~/.chums/tailscale/tailscaled.sock funnel reset`.
 
 ## Things to know
 
+- `publicHost` other than `127.0.0.1` puts the watch API on that network over plain HTTP: anyone who can see the
+  traffic can read the watch token. Prefer the machine's Tailscale address, which is encrypted. The hub's own port
+  (`7717`) always listens on `127.0.0.1` only.
+- A Hermes agent in "Decides on its own" runs shell commands and Home Assistant services the model asks for, with no
+  approval. In "Asks first" (the default) each command, and each lock, cover or alarm call, needs Allow.
 - Funnel hostnames are public. Tailscale issues a TLS certificate for the name, so it appears in certificate
   transparency logs. Assume people can find the URL; the token is what protects it.
 - `bin/chums-claude` starts Claude Code with `--dangerously-load-development-channels server:chums` (channels are a

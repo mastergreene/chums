@@ -175,16 +175,17 @@ the other runtime's thread (and model) waits in `byRuntime` for a switch back.
 
 | Field | Meaning |
 | --- | --- |
-| `runtime` | `claude` (default), `codex`; experimental: `copilot`, `acp` |
+| `runtime` | `claude` (default), `codex`, `hermes` (below); experimental: `copilot`, `acp` |
 | `cwd`, `addDirs` | its folder, and other folders it may write to (Codex: the sandbox's writable roots) |
 | `model` | e.g. `gpt-6-astra`; set from the agent's card on the iPhone (Model). Claude Code agents take it too (`opus`, `sonnet`, …) |
-| `permissionMode` | Claude Code agents: how the session asks before acting, set from the watch and the iPhone app: `default` (Asks first: its requests come to the watch and the iPhone as Allow / Deny), `acceptEdits` (Edits on its own), `auto` (Decides on its own). Passed as `--permission-mode`, so it holds when the session is resumed. Without it, `permissions.defaultMode` from `~/.claude/settings.json` is passed the same way |
+| `permissionMode` | Hermes agents: `default` (Asks first: every command, and every lock, cover or alarm in Home Assistant, comes to the watch and the phone as Allow / Deny) or `auto` (Decides on its own). Claude Code agents: how the session asks before acting, set from the watch and the iPhone app: `default` (Asks first: its requests come to the watch and the iPhone as Allow / Deny), `acceptEdits` (Edits on its own), `auto` (Decides on its own). Passed as `--permission-mode`, so it holds when the session is resumed. Without it, `permissions.defaultMode` from `~/.claude/settings.json` is passed the same way |
 | `approvalPolicy` | Codex agents: how it asks before acting, set from the watch and the iPhone app: `untrusted` (Asks first), `on-request` (Asks when it needs to), `never` (Never asks). Without it, `approval_policy` from `~/.codex/config.toml` when it is one of these, else `on-request` |
 | `sandbox` | `read-only`, `workspace-write` (default), `danger-full-access` |
 | `config` | more `-c key=value` overrides for its app-server, e.g. `["model_reasoning_effort=\"high\""]` |
 | `command` | another `codex` to run, e.g. `["/opt/homebrew/bin/codex"]` |
 | `chumsTools` | `false` leaves out the Chums MCP server (the hub then speaks final answers) |
 | `guide` | how to use its tools, added to its standing instructions |
+| `baseUrl`, `apiKey` | Hermes agents: this agent's chat API and key, instead of `hermesBaseUrl` and `hermesApiKey` in config.json |
 
 After editing agents.json, restart the hub.
 
@@ -224,6 +225,42 @@ node tools/e2e-runtimes.mjs codex      # the real Codex (gpt-6-astra): 26 checks
 
 Both run a private hub with its own `HOME`, ports and agents, never `~/.chums` or the hub on 7717. The e2e uses your
 Codex login.
+
+## Hermes: a model behind a chat API, with the hub's own tools
+
+`runtime: "hermes"` runs no agent program. The hub sends each order to an OpenAI-style chat completions API
+(OpenRouter by default, or a local server such as Ollama or llama.cpp) and runs the model's tool calls itself
+(`HermesRunner` in `hub/runtimes.mjs`).
+
+```json
+{ "id": "garfield", "name": "Garfield", "character": "garfield", "runtime": "hermes",
+  "cwd": "/home/you/chums-garfield", "model": "deepseek/deepseek-chat" }
+```
+
+| config.json | Default | What it sets |
+| --- | --- | --- |
+| `hermesBaseUrl` | `https://openrouter.ai/api/v1` | The chat API (`…/chat/completions` is added) |
+| `hermesApiKey` | `$OPENROUTER_API_KEY` | Its key. A local server may need none |
+| `hermesModel` | `deepseek/deepseek-chat` | The model, when the agent has no `model` |
+| `hassUrl`, `hassToken` | `http://homeassistant.local:8123`, none | Home Assistant. Without a token there is no `home_assistant` tool |
+| `hassDomains` | `light switch fan climate media_player scene script cover lock alarm_control_panel` | The domains it may call |
+| `hassConfirm` | `lock cover alarm_control_panel` | The domains that ask first, like a command |
+| `weather` | none | `{ "name": "Home", "latitude": 0, "longitude": 0 }`: the place for the `weather` tool (Open-Meteo). Without it there is no `weather` tool |
+| `homelab` | none | `[{ "name": "NAS", "host": "192.0.2.10", "port": 80 }]`: the services `homelab_status` checks. Without it there is no such tool |
+
+- **Tools.** `bash` (a shell command in its `cwd`, 8 s at most, output cut at 2000 characters), and the ones above
+  that are configured.
+- **Asking first.** In `default` mode (Asks first) every command waits for Allow on the watch or the phone; denied,
+  the model is told so. `auto` (Decides on its own) runs them. Switch it on the agent's card, as for Claude Code.
+- **Home Assistant.** The domain must be in `hassDomains`, the service a plain name, and the entity one entity in
+  that domain: a call outside that is refused before Home Assistant is called.
+- **A turn.** Up to 5 rounds of tool calls, then an answer. Each call to the model has 30 s. The last 8 turns are
+  kept, whole, so a tool result is never sent without its call. Orders said while it works wait their turn.
+- **Errors** are said as one sentence ("The model is rate limited…"); the detail is in
+  `~/.chums/agents/<id>.host.log`.
+- **Not kept across restarts.** The conversation lives in the hub; restarting the hub or the agent starts a new one.
+- **Tests.** `node tools/test-hermes.mjs`: a stand-in chat API that rejects what OpenAI-style APIs reject, and a
+  stand-in Home Assistant.
 
 ## Experimental: GitHub Copilot and ACP agents
 

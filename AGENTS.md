@@ -109,6 +109,7 @@ on, Model); don't do that by editing the file. To change their folders:
   CHUMS_TEST_NO_MODEL=1 node tools/test-hub.mjs      # without CHUMS_TEST_NO_MODEL it also calls a model (claude -p)
   node tools/test-artifacts.mjs                      # every kind of file an agent can show
   node tools/test-runtimes.mjs
+  node tools/test-hermes.mjs                         # runtime "hermes": a stand-in chat API and Home Assistant
   ```
 
 - The watch app builds for the Simulator with `bin/chums-sim`, with no signing. Shut the simulator down afterwards

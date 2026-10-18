@@ -607,6 +607,24 @@ The app's ID is `dev.chums.watchkitapp`, or `<bundleId>.watchkitapp` when `~/.ch
 Shut the simulator down when you're done (`xcrun simctl shutdown "Chums Watch"`): a simulator left running without a
 window plays the watch's taps as sounds on the Mac.
 
+## Linux hub and the Android app
+
+The hub also runs on Linux, with an Android app (`app/ChumsAndroid`) in place of the watch.
+
+1. Speech to text: `python3 -m venv ~/.chums/whisper && ~/.chums/whisper/bin/pip install -r tools/whisper-requirements.txt`,
+   then set `"whisperPython": "/home/you/.chums/whisper/bin/python"` in `~/.chums/config.json`. The hub also needs
+   `ffmpeg`.
+2. Let the phone reach the watch API: set `"publicHost"` to the machine's Tailscale address (traffic is encrypted)
+   or to `0.0.0.0` (plain HTTP on your network). The hub's own port, `7717`, stays on `127.0.0.1`.
+3. Start the hub: `bin/run-hub.sh` (its log goes to `~/.chums/hub.log`).
+4. Build the app: `cd app/ChumsAndroid && ./gradlew assembleDebug`, and install `app/build/outputs/apk/debug/app-debug.apk`.
+5. In the app's Settings, enter `http://<the hub's address>:7718` and the `watchToken` from `~/.chums/config.json`.
+   Nothing is built into the app, and Android doesn't back its settings up.
+6. Hold the round button (or the volume-up key, which Settings can turn off) and speak.
+
+A Hermes agent (`runtime: "hermes"`, [other-agents.md](other-agents.md#hermes-a-model-behind-a-chat-api-with-the-hubs-own-tools))
+needs no agent program on the machine: only a chat API.
+
 ## Settings
 
 Each one is an environment variable, or a key in `~/.chums/config.json`, or the default.
@@ -615,6 +633,7 @@ Each one is an environment variable, or a key in `~/.chums/config.json`, or the 
 | --- | --- | --- | --- |
 | | `port` | `7717` | The hub's local port |
 | | `publicPort` | `7718` | The watch API's port (what Funnel forwards to) |
+| | `publicHost` | `127.0.0.1` | The address the watch API listens on. `0.0.0.0` (or the machine's Tailscale address) lets a phone on the network reach it without Funnel. The hub's own port stays on `127.0.0.1` |
 | | `publicURL` | set by `bin/chums-tunnel` | The address built into the watch app |
 | | `ownerName` | `the user` | What the agents call you, e.g. `"Sam"` |
 | | `diagnostics` | `false` | `true`: the apps log their frame rate and memory to the hub every 30 s (for working on them; run `bin/chums-install` after) |
@@ -623,6 +642,8 @@ Each one is an environment variable, or a key in `~/.chums/config.json`, or the 
 | `CHUMS_LABEL_PREFIX` | `launchdPrefix` | `dev.chums` | LaunchAgent labels (`<prefix>.hub`, `<prefix>.tailscaled`, `<prefix>.agent.<id>`) |
 | `CHUMS_NODE` | `node` | `node` on your PATH | The node binary LaunchAgents run |
 | `CHUMS_WHISPER_MODEL` | | `~/Documents/huggingface/models/argmaxinc/whisperkit-coreml/openai_whisper-base` | Whisper model folder |
+| | `whisper` | `whisperkit` on macOS, `faster-whisper` elsewhere | The speech-to-text server the hub starts |
+| | `whisperPython`, `whisperModel` | `python3`, `tiny.en` | For `faster-whisper`: a Python with `tools/whisper-requirements.txt` installed, and the model |
 | `CHUMS_CLAUDE_BIN` | | `claude` in `~/.local/bin`, `~/.npm-global/bin` or PATH | The claude CLI for the soul editor |
 | `CHUMS_NO_RC` | `remoteControl` | on | `"remoteControl": false` starts every Claude Code session without Remote Control (for an API key); `CHUMS_NO_RC=1` does it for the sessions started from that shell |
 | | `tts` | `{ "engine": "kokoro" }` when installed | The voice replies are read in: `kokoro` (each agent's own), `say` (a macOS voice), `openai`, or `watch` |

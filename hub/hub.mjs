@@ -80,8 +80,8 @@ const tools = []             // { id, session, type, text, ok, at } — every to
 const AGENTS_PATH = path.join(os.homedir(), '.chums/agents.json')
 const HOME = os.homedir()
 /// The characters the watch draws, in order; each is an agent, its id the character's.
-const LOOKS = ['noodle', 'stretch', 'peeps', 'squint', 'ray', 'tangle', 'crunch', 'nana']
-const LOOK_NAMES = { noodle: 'Noodle', stretch: 'Stretch', peeps: 'Peeps', squint: 'Squint', ray: 'Ray', tangle: 'Tangle', crunch: 'Crunch', nana: 'Nana' }
+const LOOKS = ['garfield', 'ray', 'noodle', 'stretch', 'peeps', 'squint', 'tangle', 'crunch', 'nana']
+const LOOK_NAMES = { garfield: 'Garfield', noodle: 'Noodle', stretch: 'Stretch', peeps: 'Peeps', squint: 'Squint', ray: 'Ray', tangle: 'Tangle', crunch: 'Crunch', nana: 'Nana' }
 const GUIDE = "To see an app or a page, use chums_show with screenshot (and open: a URL to open it in Safari first). To show a file, use chums_show with file: a page, a document, a PDF, text or code, a table, an image or a video. The watch shows it as a picture (a video as a still); the iPhone opens the file itself. " + PAGE_GUIDE + " To read or click inside a page your owner is logged in to, run JavaScript in Safari with osascript (Safari's do JavaScript; it needs Develop › Allow JavaScript from Apple Events)."
 // the guide agents were given before; an agent that still has it gets the one above
 const OLD_GUIDES = ["To see an app or a page, use chums_show with screenshot (and open: a URL to open it in Safari first). To show a file, use chums_show with file: a page, a document, a PDF, text or code, a table, an image or a video. The watch shows it as a picture (a video as a still); the iPhone opens the file itself. An HTML page you make runs on the iPhone, its scripts and charts included, and is a picture on the watch: for a chart, a table to explore or anything visual, make one self-contained HTML file (the iPhone gets only that file, nothing beside it) and show it. To read or click inside a page your owner is logged in to, run JavaScript in Safari with osascript (Safari's do JavaScript; it needs Develop › Allow JavaScript from Apple Events).", "To see an app or a page, use chums_show with screenshot (and open: a URL to open it in Safari first). To show what you make (an HTML page, SVG, PDF or image), use chums_show with file. To read or click inside a page your owner is logged in to, run JavaScript in Safari with osascript (Safari's do JavaScript; it needs Develop › Allow JavaScript from Apple Events)."]
@@ -96,7 +96,7 @@ const ENGLISH_VOICES = [
 ].map(([id, name, grade]) => ({ id, name, grade, accent: id[0] === 'b' ? 'British' : 'American', gender: id[1] === 'f' ? 'female' : 'male' }))
 /// Each character's voice (Kokoro's: a American, b British; f female, m male), changed per agent on the watch.
 const VOICES = {
-  noodle: 'af_heart', squint: 'bf_isabella', tangle: 'bf_alice', ray: 'am_fenrir',
+  garfield: 'am_michael', noodle: 'af_heart', squint: 'bf_isabella', tangle: 'bf_alice', ray: 'am_fenrir',
   stretch: 'bm_daniel', peeps: 'af_sky', crunch: 'am_echo', nana: 'am_michael' }
 const DEFAULT_VOICE = 'af_heart'
 const defaultAgent = c => ({ id: c, name: LOOK_NAMES[c], character: c, runtime: 'claude', voice: VOICES[c] ?? DEFAULT_VOICE,

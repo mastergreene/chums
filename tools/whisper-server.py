@@ -2,6 +2,15 @@ import io
 import os
 import sys
 from aiohttp import web
+import av
+
+# Fix compatibility between PyAV 19+ and faster-whisper (metadata_errors param removed in av 19)
+_real_av_open = av.open
+def _safe_av_open(*args, **kwargs):
+    kwargs.pop('metadata_errors', None)
+    return _real_av_open(*args, **kwargs)
+av.open = _safe_av_open
+
 from faster_whisper import WhisperModel
 
 print("Loading faster-whisper model (tiny.en)...", flush=True)

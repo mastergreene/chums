@@ -75,8 +75,20 @@ fun MainScreen(
     var latestSubtitle by remember { mutableStateOf<String?>(null) }
     var localOverrideState by remember { mutableStateOf<ChumsState?>(null) }
 
-    // Active agent
-    val activeAgent = hubState?.agents?.firstOrNull()?.id ?: "ray"
+    // Active agent: prefer online garfield, or any online agent, fallback to garfield
+    val activeAgent = remember(hubState) {
+        hubState?.agents?.find { it.id == "garfield" && it.status != "offline" }?.id
+            ?: hubState?.agents?.find { it.status != "offline" }?.id
+            ?: "garfield"
+    }
+
+    LaunchedEffect(Unit) {
+        audioPlayer.onPlaybackFinished = {
+            if (localOverrideState == ChumsState.SPEAKING) {
+                localOverrideState = null
+            }
+        }
+    }
 
     // Derive active state from hub
     val derivedState = remember(hubState, isConnected, localOverrideState, isTouchingPtt, isPttKeyPressed) {
@@ -111,6 +123,8 @@ fun MainScreen(
             } else if (line.audio != null) {
                 val fullUrl = "${hubClient.getBaseUrl()}${line.audio}"
                 audioPlayer.playUrl(fullUrl, hubClient.getToken())
+            } else {
+                audioPlayer.speakText(line.text)
             }
 
             // Fallback clear speaking state after reasonable duration if player doesn't callback

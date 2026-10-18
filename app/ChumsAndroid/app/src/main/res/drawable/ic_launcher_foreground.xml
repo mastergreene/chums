@@ -1,18 +1,22 @@
+<!-- The tabby's face from the model sheet (200-unit grid), centred in the icon's 66 dp safe zone. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:fillColor="#F2AE08"
-        android:pathData="M54,54m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0" />
-    <path
-        android:fillColor="#040201"
-        android:pathData="M44,48m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
-    <path
-        android:fillColor="#040201"
-        android:pathData="M64,48m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
-    <path
-        android:fillColor="#040201"
-        android:pathData="M46,64 Q54,72 62,64" />
+    <group android:translateX="4" android:translateY="20.5" android:scaleX="0.5" android:scaleY="0.5">
+        <path android:fillColor="#F5902F" android:strokeColor="#F5902F" android:strokeWidth="4" android:strokeLineJoin="round"
+            android:pathData="M52,66 L58,26 Q60,16 68,22 L92,42 Z M148,66 L142,26 Q140,16 132,22 L108,42 Z" />
+        <path android:fillColor="#B9580F" android:pathData="M60,56 L63,32 Q64,27 68,30 L82,43 Z M140,56 L137,32 Q136,27 132,30 L118,43 Z" />
+        <path android:fillColor="#F5902F" android:pathData="M100,38 C134,38 152,56 152,80 C152,104 130,118 100,118 C70,118 48,104 48,80 C48,56 66,38 100,38 Z" />
+        <path android:strokeColor="#B9580F" android:strokeWidth="4" android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M86,56 L90,46 L100,54 L110,46 L114,56 M49,76 L59,78 M49,86 L59,86 M151,76 L141,78 M151,86 L141,86" />
+        <path android:fillColor="#FFF4E4" android:pathData="M67,80 a13,13 0 1,0 26,0 a13,13 0 1,0 -26,0 M107,80 a13,13 0 1,0 26,0 a13,13 0 1,0 -26,0" />
+        <path android:fillColor="#120B07" android:pathData="M73,81.5 a8.5,8.5 0 1,0 17,0 a8.5,8.5 0 1,0 -17,0 M113,81.5 a8.5,8.5 0 1,0 17,0 a8.5,8.5 0 1,0 -17,0" />
+        <path android:fillColor="#FFF4E4" android:pathData="M73.8,76 a3.2,3.2 0 1,0 6.4,0 a3.2,3.2 0 1,0 -6.4,0 M113.8,76 a3.2,3.2 0 1,0 6.4,0 a3.2,3.2 0 1,0 -6.4,0" />
+        <path android:fillColor="#FF8DA6" android:strokeColor="#FF8DA6" android:strokeWidth="2.5" android:strokeLineJoin="round"
+            android:pathData="M95.5,96 L104.5,96 L100,101.5 Z" />
+        <path android:strokeColor="#5E2B0B" android:strokeWidth="2.2" android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M100,101.5 L100,104.5 M93.5,104 Q96.5,108 100,104.5 Q103.5,108 106.5,104" />
+    </group>
 </vector>

@@ -1,0 +1,107 @@
+package club.chums.android.ui.screen
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+
+@Composable
+fun SettingsDialog(
+    initialUrl: String,
+    initialToken: String,
+    onSave: (url: String, token: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var url by remember { mutableStateOf(initialUrl) }
+    var token by remember { mutableStateOf(initialToken) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF15101F), RoundedCornerShape(20.dp))
+                .padding(20.dp)
+        ) {
+            Text(
+                text = "Hub Settings",
+                color = Color(0xFFECECEC),
+                fontSize = 18.sp
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = url,
+                onValueChange = { url = it },
+                label = { Text("Hub URL") },
+                placeholder = { Text("http://192.168.4.250:7717") },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color(0xFFECECEC),
+                    unfocusedTextColor = Color(0xFFECECEC),
+                    focusedBorderColor = Color(0xFFF2AE08),
+                    unfocusedBorderColor = Color(0x33FFFFFF),
+                    focusedLabelColor = Color(0xFFF2AE08),
+                    unfocusedLabelColor = Color(0x99ECECEC)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = token,
+                onValueChange = { token = it },
+                label = { Text("Token (optional)") },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color(0xFFECECEC),
+                    unfocusedTextColor = Color(0xFFECECEC),
+                    focusedBorderColor = Color(0xFFF2AE08),
+                    unfocusedBorderColor = Color(0x33FFFFFF),
+                    focusedLabelColor = Color(0xFFF2AE08),
+                    unfocusedLabelColor = Color(0x99ECECEC)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Row(modifier = Modifier.fillMaxWidth()) {
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Cancel", color = Color(0x99ECECEC))
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = { onSave(url, token) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF2AE08)),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Save", color = Color(0xFF040201))
+                }
+            }
+        }
+    }
+}

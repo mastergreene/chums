@@ -1,9 +1,12 @@
 package club.chums.android.data
 
+import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,32 +20,28 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import android.content.Context
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.coroutineContext
 
-class HubClient(
-    private val context: Context? = null,
-    private var baseUrl: String = "http://192.168.5.3:7718",
-    private var token: String = "J0KQJUwc7vnX3EWBcOP3FX70"
-) {
-    init {
-        context?.let { ctx ->
-            val prefs = ctx.getSharedPreferences("chums_prefs", Context.MODE_PRIVATE)
-            baseUrl = prefs.getString("hub_url", baseUrl) ?: baseUrl
-            token = prefs.getString("hub_token", token) ?: token
-        }
-    }
+/// The hub's watch API (its publicPort, 7718): a long poll of /v1/state, and what the phone says and answers.
+/// The URL and the watch token are entered in Settings; nothing is built in.
+class HubClient(context: Context) {
+    private val prefs = context.applicationContext.getSharedPreferences("chums_prefs", Context.MODE_PRIVATE)
+    private var baseUrl: String = prefs.getString("hub_url", "") ?: ""
+    private var token: String = prefs.getString("hub_token", "") ?: ""
+
     private val tag = "HubClient"
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private val client = OkHttpClient.Builder()
-        .readTimeout(40, TimeUnit.SECONDS)
+        .readTimeout(40, TimeUnit.SECONDS)                       // the hub holds a poll for up to 20 s
         .connectTimeout(10, TimeUnit.SECONDS)
         .writeTimeout(40, TimeUnit.SECONDS)
         .build()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val _hubState = MutableStateFlow<HubState?>(null)
     val hubState: StateFlow<HubState?> = _hubState.asStateFlow()
@@ -53,38 +52,29 @@ class HubClient(
     private val _lastError = MutableStateFlow<String?>(null)
     val lastError: StateFlow<String?> = _lastError.asStateFlow()
 
-    private val _spokenEvents = MutableSharedFlow<Spoken>()
+    // buffered, so a slow listener (a line being spoken) never holds up the poll
+    private val _spokenEvents = MutableSharedFlow<Spoken>(extraBufferCapacity = 64)
     val spokenEvents: SharedFlow<Spoken> = _spokenEvents.asSharedFlow()
-
-    private val _approvalEvents = MutableSharedFlow<Approval>()
-    val approvalEvents: SharedFlow<Approval> = _approvalEvents.asSharedFlow()
 
     private var pollJob: Job? = null
     private var rev = 0
-    private val seenSpoken = mutableSetOf<String>()
-    private val seenApprovals = mutableSetOf<String>()
+    private val seenSpoken = LinkedHashSet<String>()
+
+    val isConfigured: Boolean get() = baseUrl.isNotBlank() && token.isNotBlank()
 
     fun updateConfig(url: String, newToken: String) {
-        baseUrl = url.trimEnd('/')
-        token = newToken
-        context?.let { ctx ->
-            ctx.getSharedPreferences("chums_prefs", Context.MODE_PRIVATE)
-                .edit()
-                .putString("hub_url", baseUrl)
-                .putString("hub_token", token)
-                .apply()
-        }
+        baseUrl = url.trim().trimEnd('/')
+        token = newToken.trim()
+        prefs.edit().putString("hub_url", baseUrl).putString("hub_token", token).apply()
         restart()
     }
 
     fun getBaseUrl(): String = baseUrl
     fun getToken(): String = token
 
-    fun start(scope: CoroutineScope) {
-        if (pollJob != null) return
-        pollJob = scope.launch(Dispatchers.IO) {
-            pollLoop()
-        }
+    fun start() {
+        if (pollJob?.isActive == true || !isConfigured) return
+        pollJob = scope.launch { pollLoop() }
     }
 
     fun stop() {
@@ -94,125 +84,76 @@ class HubClient(
     }
 
     fun restart() {
-        val scope = CoroutineScope(Dispatchers.IO)
         stop()
         rev = 0
-        start(scope)
+        seenSpoken.clear()
+        _hubState.value = null
+        start()
     }
+
+    fun close() {
+        stop()
+        scope.cancel()
+    }
+
+    private fun request(path: String) = Request.Builder().url("$baseUrl$path").header("Authorization", "Bearer $token")
 
     private suspend fun pollLoop() {
         var first = true
-        var failureCount = 0
-
-        while (CoroutineScope(Dispatchers.IO).isActive) {
-            val since = if (first) 0 else rev
-            val url = "$baseUrl/v1/state?since=$since&device=phone"
-
-            val requestBuilder = Request.Builder()
-                .url(url)
-                .get()
-
-            if (token.isNotEmpty()) {
-                requestBuilder.header("Authorization", "Bearer $token")
-            }
-
+        var failures = 0
+        while (coroutineContext.isActive) {
             try {
-                val call = client.newCall(requestBuilder.build())
-                val response = withContext(Dispatchers.IO) { call.execute() }
-
-                if (response.isSuccessful) {
-                    val body = response.body?.string()
-                    if (body != null) {
-                        val parsed = json.decodeFromString<HubState>(body)
-                        rev = parsed.rev
-                        _hubState.value = parsed
-                        _connected.value = true
-                        _lastError.value = null
-                        failureCount = 0
-                        first = false
-
-                        // Check for new spoken lines
-                        for (item in parsed.spoken) {
-                            if (!seenSpoken.contains(item.id)) {
-                                seenSpoken.add(item.id)
-                                if (!first) _spokenEvents.emit(item)
-                            }
-                        }
-
-                        // Check for new approvals
-                        for (a in parsed.approvals) {
-                            if (!seenApprovals.contains(a.requestId)) {
-                                seenApprovals.add(a.requestId)
-                                if (!first) _approvalEvents.emit(a)
-                            }
-                        }
-                    }
-                } else {
-                    _connected.value = false
-                    _lastError.value = "HTTP ${response.code}: ${response.message}"
-                    failureCount++
-                    delay(if (failureCount > 3) 5000 else 1000)
+                val parsed = client.newCall(request("/v1/state?since=${if (first) 0 else rev}&device=phone").get().build()).execute().use { resp ->
+                    if (!resp.isSuccessful) throw HubError(if (resp.code == 401) "Wrong token" else "HTTP ${resp.code}")
+                    json.decodeFromString<HubState>(resp.body?.string() ?: throw HubError("Empty answer"))
                 }
+                rev = parsed.rev
+                _hubState.value = parsed
+                _connected.value = true
+                _lastError.value = null
+                failures = 0
+                // what was already said when the app connected is shown, not spoken again
+                for (line in parsed.spoken) {
+                    if (seenSpoken.add(line.id) && !first) _spokenEvents.tryEmit(line)
+                }
+                while (seenSpoken.size > 500) seenSpoken.remove(seenSpoken.first())
+                first = false
             } catch (e: Exception) {
+                if (!coroutineContext.isActive) break
                 _connected.value = false
-                _lastError.value = e.localizedMessage ?: "Connection failed"
-                failureCount++
-                delay(if (failureCount > 3) 5000 else 1000)
+                _lastError.value = (e as? HubError)?.message ?: "Can't reach the hub"
+                Log.w(tag, "poll failed", e)
+                failures++
+                delay(if (failures > 3) 5000 else 1000)
             }
         }
     }
 
-    suspend fun sendUtterance(file: File, agent: String, approvalId: String? = null): RouteResult? = withContext(Dispatchers.IO) {
-        val url = "$baseUrl/v1/utterance"
-        val mediaType = "audio/wav".toMediaType()
-        val body = file.asRequestBody(mediaType)
+    private class HubError(message: String) : Exception(message)
 
-        val requestBuilder = Request.Builder()
-            .url(url)
-            .post(body)
+    suspend fun sendUtterance(file: File, agent: String, approvalId: String? = null): RouteResult? = withContext(Dispatchers.IO) {
+        val builder = request("/v1/utterance")
+            .post(file.asRequestBody("audio/wav".toMediaType()))
             .header("X-Chums-Agent", agent)
             .header("X-Chums-Device", "phone")
-
-        if (approvalId != null) {
-            requestBuilder.header("X-Chums-Approval", approvalId)
-        }
-        if (token.isNotEmpty()) {
-            requestBuilder.header("Authorization", "Bearer $token")
-        }
-
+        if (approvalId != null) builder.header("X-Chums-Approval", approvalId)
         try {
-            val resp = client.newCall(requestBuilder.build()).execute()
-            if (resp.isSuccessful) {
-                resp.body?.string()?.let { json.decodeFromString<RouteResult>(it) }
-            } else {
-                Log.e(tag, "sendUtterance failed: ${resp.code}")
-                null
+            client.newCall(builder.build()).execute().use { resp ->
+                if (resp.isSuccessful) resp.body?.string()?.let { json.decodeFromString<RouteResult>(it) }
+                else { Log.e(tag, "sendUtterance failed: ${resp.code}"); null }
             }
         } catch (e: Exception) {
             Log.e(tag, "sendUtterance error", e)
             null
+        } finally {
+            file.delete()
         }
     }
 
     suspend fun verdict(requestId: String, allow: Boolean): Boolean = withContext(Dispatchers.IO) {
-        val url = "$baseUrl/v1/verdict"
-        val payload = json.encodeToString(
-            VerdictRequest.serializer(),
-            VerdictRequest(requestId, if (allow) "allow" else "deny")
-        )
-        val body = payload.toRequestBody("application/json".toMediaType())
-
-        val requestBuilder = Request.Builder()
-            .url(url)
-            .post(body)
-
-        if (token.isNotEmpty()) {
-            requestBuilder.header("Authorization", "Bearer $token")
-        }
-
+        val payload = json.encodeToString(VerdictRequest.serializer(), VerdictRequest(requestId, if (allow) "allow" else "deny"))
         try {
-            val resp = client.newCall(requestBuilder.build()).execute()
-            resp.isSuccessful
+            client.newCall(request("/v1/verdict").post(payload.toRequestBody("application/json".toMediaType())).build()).execute().use { it.isSuccessful }
         } catch (e: Exception) {
             Log.e(tag, "verdict error", e)
             false
@@ -220,27 +161,10 @@ class HubClient(
     }
 
     suspend fun say(text: String, agent: String, approvalId: String? = null): RouteResult? = withContext(Dispatchers.IO) {
-        val url = "$baseUrl/v1/say"
-        val payload = json.encodeToString(
-            SayRequest.serializer(),
-            SayRequest(text = text, agent = agent, approval = approvalId)
-        )
-        val body = payload.toRequestBody("application/json".toMediaType())
-
-        val requestBuilder = Request.Builder()
-            .url(url)
-            .post(body)
-
-        if (token.isNotEmpty()) {
-            requestBuilder.header("Authorization", "Bearer $token")
-        }
-
+        val payload = json.encodeToString(SayRequest.serializer(), SayRequest(text = text, agent = agent, approval = approvalId))
         try {
-            val resp = client.newCall(requestBuilder.build()).execute()
-            if (resp.isSuccessful) {
-                resp.body?.string()?.let { json.decodeFromString<RouteResult>(it) }
-            } else {
-                null
+            client.newCall(request("/v1/say").post(payload.toRequestBody("application/json".toMediaType())).build()).execute().use { resp ->
+                if (resp.isSuccessful) resp.body?.string()?.let { json.decodeFromString<RouteResult>(it) } else null
             }
         } catch (e: Exception) {
             Log.e(tag, "say error", e)

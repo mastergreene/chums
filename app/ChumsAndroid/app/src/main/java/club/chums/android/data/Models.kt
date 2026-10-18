@@ -14,6 +14,7 @@ enum class ChumsState {
     APPROVAL,
     BLOCKED,
     DIZZY,
+    ERROR,
     SLEEP
 }
 

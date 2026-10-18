@@ -22,7 +22,7 @@ class AudioRecorder(private val context: Context) {
     private val audioFormat = AudioFormat.ENCODING_PCM_16BIT
 
     private var audioRecord: AudioRecord? = null
-    private var isRecording = false
+    @Volatile private var isRecording = false
     private var recordThread: Thread? = null
     private val pcmBuffer = ByteArrayOutputStream()
 
@@ -57,13 +57,11 @@ class AudioRecorder(private val context: Context) {
 
             recordThread = Thread {
                 val readBuffer = ByteArray(1024)
+                val record = audioRecord ?: return@Thread
                 while (isRecording) {
-                    val read = audioRecord?.read(readBuffer, 0, readBuffer.size) ?: -1
-                    if (read > 0) {
-                        synchronized(pcmBuffer) {
-                            pcmBuffer.write(readBuffer, 0, read)
-                        }
-                    }
+                    val read = record.read(readBuffer, 0, readBuffer.size)
+                    if (read < 0) break                                  // released or failed: stop, don't spin
+                    if (read > 0) synchronized(pcmBuffer) { pcmBuffer.write(readBuffer, 0, read) }
                 }
             }.apply { start() }
 
@@ -79,31 +77,20 @@ class AudioRecorder(private val context: Context) {
 
         isRecording = false
         try {
-            audioRecord?.stop()
-            audioRecord?.release()
+            audioRecord?.stop()                                          // unblocks a read in progress
         } catch (e: Exception) {
             Log.e(tag, "Error stopping recorder", e)
         }
-        audioRecord = null
         recordThread?.join(1000)
         recordThread = null
+        audioRecord?.release()                                           // after the thread is done with it
+        audioRecord = null
 
         val rawPcm = synchronized(pcmBuffer) { pcmBuffer.toByteArray() }
         if (rawPcm.isEmpty()) return@withContext null
 
-        // Chums design rule: pad short clips with silence because Whisper drops audio < 1.0s
-        val minSamples = sampleRate * 2 // 1 second of 16-bit mono = 32000 bytes
-        val finalPcm = if (rawPcm.size < minSamples) {
-            val padBytes = minSamples - rawPcm.size
-            val frontPad = (padBytes / 2) and -2 // ensure 16-bit alignment
-            val backPad = (padBytes - frontPad) and -2
-
-            ByteArray(frontPad + rawPcm.size + backPad).apply {
-                System.arraycopy(rawPcm, 0, this, frontPad, rawPcm.size)
-            }
-        } else {
-            rawPcm
-        }
+        // short clips are padded with silence by the hub (ffmpeg, before Whisper), so the clip goes as recorded
+        val finalPcm = rawPcm
 
         val outputFile = File(context.cacheDir, "utterance_${System.currentTimeMillis()}.wav")
         writeWavFile(outputFile, finalPcm, sampleRate)

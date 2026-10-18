@@ -224,7 +224,7 @@ private fun DrawScope.drawFace(
             drawPath(smilePath, RayPalette.Ink)
         }
 
-        ChumsState.BLOCKED -> {
+        ChumsState.BLOCKED, ChumsState.ERROR -> {
             // Angry brows and eyes
             drawLine(
                 color = RayPalette.Ink,

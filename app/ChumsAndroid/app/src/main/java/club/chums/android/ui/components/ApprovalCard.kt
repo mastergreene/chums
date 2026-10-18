@@ -1,5 +1,6 @@
 package club.chums.android.ui.components
 
+import android.os.Build
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -126,7 +127,7 @@ fun ApprovalCard(
                                         val p = (elapsed.toFloat() / holdDuration).coerceIn(0f, 1f)
                                         holdProgress = p
                                         if (p >= 1f) {
-                                            view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                            view.performHapticFeedback(if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.LONG_PRESS)
                                             onVerdict(true)
                                             break
                                         }

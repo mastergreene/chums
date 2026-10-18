@@ -79,6 +79,8 @@ import club.chums.android.data.ChumsState
 import club.chums.android.data.HubState
 import club.chums.android.ui.character.GarfieldRig
 import club.chums.android.ui.character.RayRig
+import club.chums.android.ui.character.PeepsRig
+import club.chums.android.ui.character.SquintRig
 import club.chums.android.ui.components.ApprovalCard
 import club.chums.android.ui.components.ToolBadge
 import kotlinx.coroutines.delay
@@ -120,6 +122,8 @@ fun MainScreen(model: ChumsViewModel, isPttKeyPressed: Boolean = false) {
     var latestSubtitle by rememberSaveable { mutableStateOf<String?>(null) }
     var localOverrideState by remember { mutableStateOf<ChumsState?>(null) }
     var selectedAgent by rememberSaveable { mutableStateOf<String?>(null) }
+    // The face is a visual skin: switching it must not change agent sessions.
+    var previewFace by rememberSaveable { mutableStateOf("auto") }
 
     // the agent on screen: the one picked, else Garfield when it's up, else the first one up, else Garfield
     val activeAgent = selectedAgent
@@ -262,8 +266,14 @@ fun MainScreen(model: ChumsViewModel, isPttKeyPressed: Boolean = false) {
             verticalArrangement = Arrangement.Center
         ) {
             Box(modifier = Modifier.size(rigSize), contentAlignment = Alignment.Center) {
-                if (activeAgent.contains("garfield", ignoreCase = true)) GarfieldRig(state = derivedState)
-                else RayRig(state = derivedState)
+                val agentFace = hubState?.agents?.find { it.id == activeAgent }?.character ?: activeAgent
+                val shownFace = if (previewFace == "auto") agentFace.lowercase() else previewFace
+                when (shownFace) {
+                    "garfield" -> GarfieldRig(state = derivedState)
+                    "peeps" -> PeepsRig(state = derivedState)
+                    "squint", "squints" -> SquintRig(state = derivedState)
+                    else -> RayRig(state = derivedState)
+                }
                 if (derivedState == ChumsState.WORKING || derivedState == ChumsState.SUBAGENTS) {
                     ToolBadge(
                         currentTool = hubState?.tools?.lastOrNull { it.session == activeAgent },
@@ -271,6 +281,20 @@ fun MainScreen(model: ChumsViewModel, isPttKeyPressed: Boolean = false) {
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "Face: " + (if (previewFace == "auto") "Agent default" else previewFace.replaceFirstChar { it.uppercase() }),
+                color = Color(0xFFB0B0B0),
+                fontSize = 12.sp,
+                modifier = Modifier.clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFF15101F))
+                    .clickable {
+                        val faces = listOf("auto", "garfield", "peeps", "squint", "ray")
+                        previewFace = faces[(faces.indexOf(previewFace) + 1) % faces.size]
+                    }
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
 

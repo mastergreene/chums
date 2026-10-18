@@ -1003,11 +1003,20 @@ function verdict(requestId, behavior) {
 // ---------- speech-to-text ----------
 let whisper = null
 function startWhisper() {
+  const pythonBin = '/home/hermesagent/garfield-mobile-gateway-venv/bin/python'
+  const script = path.join(ROOT, 'tools/whisper-server.py')
+  if (fs.existsSync(pythonBin) && fs.existsSync(script)) {
+    whisper = spawn(pythonBin, [script], { stdio: ['ignore', 'ignore', 'pipe'] })
+    whisper.stderr.on('data', d => log(`whisper stderr: ${String(d).trim()}`))
+    whisper.on('error', e => log(`whisper error: ${e.message}`))
+    whisper.on('exit', code => { log('whisper exited', code, '- restarting in 3 s'); setTimeout(startWhisper, 3000) })
+    log('whisper server starting on', WHISPER_PORT)
+    return
+  }
   if (!fs.existsSync(WHISPER_MODEL)) { log('whisper model missing at', WHISPER_MODEL); return }
   whisper = spawn('whisperkit-cli', ['serve', '--model-path', WHISPER_MODEL, '--port', String(WHISPER_PORT)],
     { stdio: ['ignore', 'ignore', 'pipe'] })
   whisper.stderr.resume()                                  // read and dropped: a full pipe would stop it mid-write
-  // not on PATH (a LaunchAgent's PATH is set in its plist): said once, with the fix; no 'exit' follows, so no retries
   whisper.on('error', e => log(`whisperkit-cli didn't start (${e.code}): brew install whisperkit-cli, then bin/chums-setup --launchd (or start the hub from a shell that has it)`))
   whisper.on('exit', code => { log('whisper exited', code, '- restarting in 3 s'); setTimeout(startWhisper, 3000) })
   log('whisper server starting on', WHISPER_PORT)
@@ -1558,8 +1567,8 @@ for (const [srv, key] of [[server, 'port'], [publicServer, 'publicPort']]) srv.o
     `lsof -nP -iTCP:${cfg[key]} -sTCP:LISTEN shows what it is). Stop that one first, or set "${key}" in ${CONFIG_PATH}.`)
   process.exit(1)
 })
-server.listen(cfg.port, '127.0.0.1', () => { log(`Chums hub on 127.0.0.1:${cfg.port}  config ${CONFIG_PATH}`); if (++listening === 2) startAll() })
-publicServer.listen(cfg.publicPort, '127.0.0.1', () => { log(`watch API for the tunnel on 127.0.0.1:${cfg.publicPort}${cfg.publicURL ? `  (${cfg.publicURL})` : ''}`); if (++listening === 2) startAll() })
+server.listen(cfg.port, cfg.host ?? '0.0.0.0', () => { log(`Chums hub on ${cfg.host ?? '0.0.0.0'}:${cfg.port}  config ${CONFIG_PATH}`); if (++listening === 2) startAll() })
+publicServer.listen(cfg.publicPort, cfg.host ?? '0.0.0.0', () => { log(`watch API for the tunnel on ${cfg.host ?? '0.0.0.0'}:${cfg.publicPort}${cfg.publicURL ? `  (${cfg.publicURL})` : ''}`); if (++listening === 2) startAll() })
 const quit = () => { quitting = true; whisper?.kill(); kokoro.proc?.kill(); for (const r of runners.values()) r?.stop(); setTimeout(() => process.exit(0), 300) }
 process.on('SIGTERM', quit)
 process.on('SIGINT', quit)

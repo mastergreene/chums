@@ -1,0 +1,5 @@
+# Speech to text on Linux (tools/whisper-server.py): faster-whisper on the CPU. Install into a venv and set
+# "whisperPython" in ~/.chums/config.json to its python. Versions tested together.
+faster-whisper==1.2.1
+av==19.0.1
+aiohttp==3.14.5

@@ -1,2 +1,4 @@
 #!/usr/bin/env bash
-exec node /home/hermesagent/workspace/repos/chums/hub/hub.mjs >> /home/hermesagent/.chums/hub.log 2>&1
+# Runs the hub in the foreground with its log in ~/.chums/hub.log (for a systemd unit or a terminal on Linux).
+mkdir -p "$HOME/.chums"
+exec node "$(cd "$(dirname "$0")/.." && pwd)/hub/hub.mjs" >> "$HOME/.chums/hub.log" 2>&1

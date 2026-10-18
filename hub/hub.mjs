@@ -1001,22 +1001,32 @@ function verdict(requestId, behavior) {
 }
 
 // ---------- speech-to-text ----------
-let whisper = null
+let whisper = null, quickExits = 0
 function startWhisper() {
-  const pythonBin = '/home/hermesagent/garfield-mobile-gateway-venv/bin/python'
-  const script = path.join(ROOT, 'tools/whisper-server.py')
-  if (fs.existsSync(pythonBin) && fs.existsSync(script)) {
-    whisper = spawn(pythonBin, [script], { stdio: ['ignore', 'ignore', 'pipe'] })
-    whisper.stderr.on('data', d => log(`whisper stderr: ${String(d).trim()}`))
-    whisper.on('error', e => log(`whisper error: ${e.message}`))
-    whisper.on('exit', code => { log('whisper exited', code, '- restarting in 3 s'); setTimeout(startWhisper, 3000) })
-    log('whisper server starting on', WHISPER_PORT)
+  // faster-whisper (tools/whisper-server.py) where whisperkit-cli isn't (Linux), or when the config asks for it
+  if (cfg.whisper === 'faster-whisper' || (cfg.whisper !== 'whisperkit' && process.platform !== 'darwin')) {
+    const python = cfg.whisperPython || 'python3'
+    whisper = spawn(python, [path.join(ROOT, 'tools/whisper-server.py')], { stdio: ['ignore', 'ignore', 'pipe'],
+      env: { ...process.env, WHISPER_PORT: String(WHISPER_PORT), WHISPER_MODEL: cfg.whisperModel || 'tiny.en' } })
+    whisper.stderr.on('data', d => log(`whisper: ${String(d).trim()}`))
+    const hint = `set "whisperPython" in ${CONFIG_PATH} to a Python with tools/whisper-requirements.txt installed`
+    const startedAt = Date.now()
+    whisper.on('error', e => log(`faster-whisper didn't start (${e.code}): ${hint}`))
+    whisper.on('exit', code => {
+      // one that dies at once (no faster_whisper in that Python) is tried 5 times, not forever
+      quickExits = Date.now() - startedAt < 15_000 ? quickExits + 1 : 0
+      if (quitting) return
+      if (quickExits >= 5) return log(`whisper keeps exiting (${code}): ${hint}, then restart the hub`)
+      log('whisper exited', code, '- restarting in 3 s'); setTimeout(startWhisper, 3000)
+    })
+    log('whisper server (faster-whisper) starting on', WHISPER_PORT)
     return
   }
   if (!fs.existsSync(WHISPER_MODEL)) { log('whisper model missing at', WHISPER_MODEL); return }
   whisper = spawn('whisperkit-cli', ['serve', '--model-path', WHISPER_MODEL, '--port', String(WHISPER_PORT)],
     { stdio: ['ignore', 'ignore', 'pipe'] })
   whisper.stderr.resume()                                  // read and dropped: a full pipe would stop it mid-write
+  // not on PATH (a LaunchAgent's PATH is set in its plist): said once, with the fix; no 'exit' follows, so no retries
   whisper.on('error', e => log(`whisperkit-cli didn't start (${e.code}): brew install whisperkit-cli, then bin/chums-setup --launchd (or start the hub from a shell that has it)`))
   whisper.on('exit', code => { log('whisper exited', code, '- restarting in 3 s'); setTimeout(startWhisper, 3000) })
   log('whisper server starting on', WHISPER_PORT)
@@ -1479,6 +1489,10 @@ const PERMISSIONS = {
     { id: 'on-request', name: 'Asks when it needs to', about: 'Works in its folders and asks to go further.' },
     { id: 'never', name: 'Never asks', about: 'Runs without asking, inside its sandbox.' },
   ] },
+  hermes: { field: 'permissionMode', modes: [
+    { id: 'default', name: 'Asks first', about: 'Every command, and every lock, cover or alarm in Home Assistant, comes to your watch and phone as Allow or Deny.' },
+    { id: 'auto', name: 'Decides on its own', about: 'Runs commands and Home Assistant services without asking.' },
+  ] },
 }
 /// Claude Code's modes the apps don't offer, which its settings can still give.
 const CLAUDE_OTHER_MODES = { plan: 'Plans only', bypassPermissions: 'Never asks' }
@@ -1495,6 +1509,7 @@ function codexPolicy() {
 /// The name of the mode an agent with none of its own runs in, read when asked (null: one the hub has no name for).
 function defaultPermission(runtime) {
   if (runtime === 'claude') return modeName('claude', readJSONFile(path.join(HOME, '.claude/settings.json'))?.permissions?.defaultMode ?? 'default')
+  if (runtime === 'hermes') return modeName('hermes', 'default')
   return modeName(runtime, codexPolicy())
 }
 /// An agent's permission mode (null: its runtime's own setting): kept in agents.json, and it restarts in it.
@@ -1502,7 +1517,7 @@ const setPermission = (id, mode) => serially(async () => {
   const a = agentNamed(id), runtime = a.runtime ?? 'claude', p = PERMISSIONS[runtime]
   mode = mode || null
   if (mode !== null && !p?.modes.some(m => m.id === mode)) {
-    throw Object.assign(new Error(p ? `${runtime === 'claude' ? 'Claude Code' : 'Codex'}'s modes are ${p.modes.map(m => m.id).join(', ')}.`
+    throw Object.assign(new Error(p ? `${{ claude: 'Claude Code', codex: 'Codex', hermes: 'Hermes' }[runtime]}'s modes are ${p.modes.map(m => m.id).join(', ')}.`
       : `An agent on ${runtime} has no modes to pick.`), { code: 400 })
   }
   if (!p || (a[p.field] ?? null) === mode) return { id, mode }
@@ -1516,7 +1531,7 @@ const setPermission = (id, mode) => serially(async () => {
 // ---------- agents the hub runs itself (Codex, Copilot, ACP agents): hub/runtimes.mjs ----------
 // They join as sessions with a driver: orders and verdicts go to it, and it reports in the hooks' words.
 const runtimeHub = {
-  url: `http://127.0.0.1:${cfg.port}`, token: cfg.token, port: cfg.port, dir: CONFIG_DIR, log, bump, codexPolicy,
+  url: `http://127.0.0.1:${cfg.port}`, token: cfg.token, port: cfg.port, dir: CONFIG_DIR, log, bump, codexPolicy, config: () => cfg,
   join({ id, name, cwd, driver }) {
     for (const s of sessions.values()) if (s.name === name && s.cwd === cwd) {      // its previous run, if still here
       sessions.delete(s.id)
@@ -1567,8 +1582,15 @@ for (const [srv, key] of [[server, 'port'], [publicServer, 'publicPort']]) srv.o
     `lsof -nP -iTCP:${cfg[key]} -sTCP:LISTEN shows what it is). Stop that one first, or set "${key}" in ${CONFIG_PATH}.`)
   process.exit(1)
 })
-server.listen(cfg.port, cfg.host ?? '0.0.0.0', () => { log(`Chums hub on ${cfg.host ?? '0.0.0.0'}:${cfg.port}  config ${CONFIG_PATH}`); if (++listening === 2) startAll() })
-publicServer.listen(cfg.publicPort, cfg.host ?? '0.0.0.0', () => { log(`watch API for the tunnel on ${cfg.host ?? '0.0.0.0'}:${cfg.publicPort}${cfg.publicURL ? `  (${cfg.publicURL})` : ''}`); if (++listening === 2) startAll() })
+// the hub's own door (channel, hooks, both tokens) stays on this machine; the watch API goes where publicHost says
+// (127.0.0.1 for the tunnel; 0.0.0.0 or a Tailscale address for a phone on the LAN)
+const PUBLIC_HOST = cfg.publicHost || '127.0.0.1'
+server.listen(cfg.port, '127.0.0.1', () => { log(`Chums hub on 127.0.0.1:${cfg.port}  config ${CONFIG_PATH}`); if (++listening === 2) startAll() })
+publicServer.listen(cfg.publicPort, PUBLIC_HOST, () => {
+  log(`watch API on ${PUBLIC_HOST}:${cfg.publicPort}${cfg.publicURL ? `  (${cfg.publicURL})` : ''}`)
+  if (!/^(127\.|::1$|localhost$)/.test(PUBLIC_HOST)) log('the watch API is open on the network over plain HTTP: use it on a network you trust, or over Tailscale')
+  if (++listening === 2) startAll()
+})
 const quit = () => { quitting = true; whisper?.kill(); kokoro.proc?.kill(); for (const r of runners.values()) r?.stop(); setTimeout(() => process.exit(0), 300) }
 process.on('SIGTERM', quit)
 process.on('SIGINT', quit)

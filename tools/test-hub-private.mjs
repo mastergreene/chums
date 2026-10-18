@@ -2,20 +2,21 @@
 // speech-to-text, so tests never reach the real hub or a real Claude Code session in its routing table.
 // import { startPrivateHub } from './test-hub-private.mjs'; const { cfg, stop } = await startPrivateHub()
 // Options: agents (its ~/.chums/agents.json; else the hub writes its defaults), env (more environment for the hub and
-// the agents it runs), logFile (where the hub's log goes), home (a previous private hub's, to start a hub again on
-// it), and CHUMS_TEST_LOG=1 to see the hub's log. It returns hub (the process) and stop({ keepHome }).
+// the agents it runs), config (more keys for its config.json), logFile (where the hub's log goes), home (a previous
+// private hub's, to start a hub again on it), and CHUMS_TEST_LOG=1 to see the hub's log. It returns hub (the process)
+// and stop({ keepHome }).
 // Its bin/chums-agents is a stand-in that only writes what it was asked to <home>/chums-agents.log: a test that
 // restarts a Claude Code agent never touches a real LaunchAgent.
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path'
 
-export async function startPrivateHub({ agents, env = {}, logFile, home: again } = {}) {
+export async function startPrivateHub({ agents, env = {}, logFile, home: again, config = {} } = {}) {
   const home = again ?? fs.mkdtempSync(path.join(os.tmpdir(), 'chums-test-'))
   let cfg
   if (again) cfg = JSON.parse(fs.readFileSync(path.join(home, '.chums/config.json'), 'utf8'))
   else {
     fs.mkdirSync(path.join(home, '.chums'))
-    cfg = { port: 17717 + Math.floor(Math.random() * 500) * 2, token: 'test-local-' + Date.now(), watchToken: 'test-watch-' + Date.now() }
+    cfg = { ...config, port: 17717 + Math.floor(Math.random() * 500) * 2, token: 'test-local-' + Date.now(), watchToken: 'test-watch-' + Date.now() }
     cfg.publicPort = cfg.port + 1
     fs.writeFileSync(path.join(home, '.chums/config.json'), JSON.stringify(cfg))
   }

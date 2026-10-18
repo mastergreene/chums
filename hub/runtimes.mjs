@@ -15,7 +15,7 @@
 // Orders arrive through deliver(); the agent replies with chums_reply / chums_show from the Chums MCP server
 // (channel/chums-channel.mjs in tools-only mode), and when a turn from the watch ends without one, the hub speaks the
 // first sentence of the agent's last message instead, so the watch never stays silent.
-import { spawn, execFileSync } from 'node:child_process'
+import { spawn, execFile, execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -599,257 +599,180 @@ class CodexRunner extends Runner {
   }
 }
 
-// ---------- Hermes / OpenRouter native agent runner ----------
-const HERMES_TOOLS = [
-  {
-    type: 'function',
-    function: {
-      name: 'bash',
-      description: 'Run a shell command on the host to check files, processes, network, or perform actions.',
-      parameters: {
-        type: 'object',
-        properties: {
-          command: { type: 'string', description: 'The shell command to execute' }
-        },
-        required: ['command']
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'home_assistant',
-      description: 'Control Home Assistant devices and lights (e.g. light.living_room, light.dining_room, switch).',
-      parameters: {
-        type: 'object',
-        properties: {
-          domain: { type: 'string', description: 'Domain: light, switch, climate, media_player' },
-          service: { type: 'string', description: 'Service: turn_on, turn_off, toggle' },
-          entity_id: { type: 'string', description: 'Entity ID, e.g. light.living_room' }
-        },
-        required: ['domain', 'service']
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'weather',
-      description: 'Get current local weather conditions and temperature for Brisbane / Southside.',
-      parameters: {
-        type: 'object',
-        properties: {
-          location: { type: 'string', description: 'Location, defaults to Brisbane' }
-        }
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'homelab_status',
-      description: 'Check connectivity of homelab services (Unraid/Apollo, Home Assistant, Ollama, Plex).',
-      parameters: {
-        type: 'object',
-        properties: {}
-      }
-    }
+// ---------- Hermes: a model behind an OpenAI-style chat API (OpenRouter, a local server), with the hub's own tools ----------
+const HERMES_ROUNDS = 5                 // tool rounds in one turn before it must answer
+const HERMES_TURNS = 8                  // whole turns of conversation kept
+const HERMES_TIMEOUT = 30_000           // one call to the model
+const HASS_DOMAINS = ['light', 'switch', 'fan', 'climate', 'media_player', 'scene', 'script', 'cover', 'lock', 'alarm_control_panel']
+const HASS_CONFIRM = ['lock', 'cover', 'alarm_control_panel']       // asked first, like a command
+const fn = (name, description, properties = {}, required = []) => ({ type: 'function', function: { name, description, parameters: { type: 'object', properties, required } } })
+
+/// What a Hermes agent can do, from the hub's config: bash always; Home Assistant, weather and the homelab probes when set up.
+function hermesTools(cfg) {
+  const t = [fn('bash', 'Run a shell command on the host (files, processes, network). Its output comes back.', { command: { type: 'string', description: 'The command' } }, ['command'])]
+  if (cfg.hassToken || process.env.HASS_TOKEN) {
+    const domains = cfg.hassDomains ?? HASS_DOMAINS
+    t.push(fn('home_assistant', `Call a Home Assistant service on one entity. Domains: ${domains.join(', ')}.`, {
+      domain: { type: 'string', enum: domains }, service: { type: 'string', description: 'e.g. turn_on, turn_off, toggle' },
+      entity_id: { type: 'string', description: 'e.g. light.living_room' } }, ['domain', 'service', 'entity_id']))
   }
-]
+  if (cfg.weather) t.push(fn('weather', `Current weather. Without a location: ${cfg.weather.name ?? 'home'}.`, { location: { type: 'string', description: 'A place name, if not home' } }))
+  if (cfg.homelab?.length) t.push(fn('homelab_status', `Whether these services answer: ${cfg.homelab.map(p => p.name).join(', ')}.`))
+  return t
+}
+
+const portOpen = (host, port, ms = 1200) => new Promise(resolve => {
+  const s = net.connect({ host, port })
+  const done = up => { s.destroy(); resolve(up) }
+  s.setTimeout(ms, () => done(false)); s.on('connect', () => done(true)); s.on('error', () => done(false))
+})
 
 class HermesRunner extends Runner {
-  constructor(agent, hub) {
-    super(agent, hub)
-    this.sid = crypto.randomUUID()
-    this.history = []
-  }
   async run() {
+    this.sid ??= crypto.randomUUID(); this.queue = []; this.busy = false; this.turns = []
+    fs.mkdirSync(this.a.cwd, { recursive: true })                      // its commands run there
     this.join('startup')
   }
-  async order(item) {
-    this.newTurn(item.device === 'watch')
-    const prompt = item.said || item.text
-    try {
-      let openrouterKey = process.env.OPENROUTER_API_KEY
-      if (!openrouterKey) {
-        const authPath = path.join(REAL_HOME, '.local/share/opencode/auth.json')
-        if (fs.existsSync(authPath)) {
-          const auth = JSON.parse(fs.readFileSync(authPath, 'utf8'))
-          openrouterKey = auth.openrouter?.key
-        }
+  get cfg() { return this.hub.config?.() ?? {} }
+  get asksFirst() { return (this.a.permissionMode ?? 'default') !== 'auto' }
+  order(item) { this.queue.push(item); if (!this.busy) this.pump() }
+  // one turn at a time: orders said meanwhile wait, so two turns never share the history half-written
+  async pump() {
+    this.busy = true
+    while (this.queue.length && this.s) {
+      const item = this.queue.shift()
+      this.newTurn(item.device === 'watch')
+      try {
+        const reply = await this.turnFor(item)
+        this.hub.reply(this.s, spokenLine(reply, wordsFor(item.device)) || 'Done.', 'done')
+        this.finish('done')
+      } catch (e) {
+        this.note('turn failed:', e.detail ?? e.message)
+        if (this.s) this.hub.reply(this.s, e.spoken ?? "Sorry, that didn't work.", 'blocked')
+        this.finish('failed', e.message)
       }
-
-      const systemPrompt = `You are ${this.a.name}, Kash's AI assistant on his Android wearable communicator.
-Be calm, practical, concise, and helpful. No em dashes. No corporate filler.
-Always execute actions using the provided tools (bash, home_assistant) when asked to do something.
-If an action fails (e.g. Home Assistant host is down), state the fact honestly.
-Reply in 1 or 2 punchy, conversational sentences under 25 words suitable for speech.`
-
-      this.history.push({ role: 'user', content: prompt })
-      if (this.history.length > 10) this.history = this.history.slice(-10)
-
-      this.hub.hook(this.s, 'PreToolUse', { tool: 'Task', input: { description: 'Thinking' } })
-
-      let res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openrouterKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: this.a.model || 'deepseek/deepseek-chat',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...this.history
-          ],
-          tools: HERMES_TOOLS,
-          max_tokens: 150
-        })
-      })
-
-      if (!res.ok) {
-        const err = await res.text()
-        throw new Error(`OpenRouter HTTP ${res.status}: ${err}`)
-      }
-
-      let data = await res.json()
-      let choice = data.choices?.[0]?.message
-      if (!choice) throw new Error('No response from model')
-
-      // Handle tool execution
-      if (choice.tool_calls?.length) {
-        this.history.push(choice)
-        for (const tc of choice.tool_calls) {
-          const fn = tc.function
-          let args = {}
-          try { args = JSON.parse(fn.arguments) } catch {}
-          let result = ''
-
-          if (fn.name === 'bash') {
-            this.hub.hook(this.s, 'PreToolUse', { tool: 'Bash', input: { command: args.command } })
-            try {
-              const out = execFileSync('/bin/sh', ['-c', args.command], { timeout: 8000, encoding: 'utf8' })
-              result = out.slice(0, 1000)
-            } catch (err) {
-              result = `Error: ${err.message}`
-            }
-            this.hub.hook(this.s, 'PostToolUse')
-          } else if (fn.name === 'home_assistant') {
-            const label = `${args.domain}.${args.service} (${args.entity_id || ''})`
-            this.hub.hook(this.s, 'PreToolUse', { tool: 'HA', input: { command: label } })
-            try {
-              let hassToken = process.env.HASS_TOKEN
-              let hassUrl = process.env.HASS_URL || 'http://192.168.4.250:8123'
-              const cfgPath = path.join(REAL_HOME, '.chums/config.json')
-              if (fs.existsSync(cfgPath)) {
-                try {
-                  const c = JSON.parse(fs.readFileSync(cfgPath, 'utf8'))
-                  if (c.hassToken) hassToken = c.hassToken
-                  if (c.hassUrl) hassUrl = c.hassUrl
-                } catch {}
-              }
-
-              if (!hassToken) {
-                result = 'Home Assistant access token is not configured in ~/.chums/config.json (add hassToken).'
-              } else {
-                const haRes = await fetch(`${hassUrl}/api/services/${args.domain}/${args.service}`, {
-                  method: 'POST',
-                  headers: {
-                    'Authorization': `Bearer ${hassToken}`,
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({ entity_id: args.entity_id }),
-                  signal: AbortSignal.timeout(3000)
-                })
-                if (haRes.ok) {
-                  result = `Service ${args.domain}.${args.service} executed successfully.`
-                } else {
-                  result = `Home Assistant returned HTTP ${haRes.status}`
-                }
-              }
-            } catch (err) {
-              result = `Failed: Home Assistant host at 192.168.4.250:8123 is down or unreachable (${err.message})`
-            }
-            this.hub.hook(this.s, 'PostToolUse')
-          } else if (fn.name === 'weather') {
-            this.hub.hook(this.s, 'PreToolUse', { tool: 'Weather', input: { location: args.location || 'Brisbane' } })
-            try {
-              const wRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-27.4698&longitude=153.0251&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m', {
-                signal: AbortSignal.timeout(4000)
-              })
-              const wData = await wRes.json()
-              const cur = wData.current
-              result = `Brisbane current weather: ${cur.temperature_2m}°C, humidity ${cur.relative_humidity_2m}%, wind speed ${cur.wind_speed_10m} km/h.`
-            } catch (err) {
-              result = `Weather check error: ${err.message}`
-            }
-            this.hub.hook(this.s, 'PostToolUse')
-          } else if (fn.name === 'homelab_status') {
-            this.hub.hook(this.s, 'PreToolUse', { tool: 'Homelab', input: { target: 'Apollo' } })
-            try {
-              const probes = [
-                { name: 'Apollo Host', host: '192.168.4.250', port: 80 },
-                { name: 'Home Assistant', host: '192.168.4.250', port: 8123 },
-                { name: 'Ollama GPU', host: '192.168.4.250', port: 11434 },
-                { name: 'Plex', host: '192.168.4.250', port: 32400 }
-              ]
-              const checkPort = (host, port) => new Promise(resolve => {
-                const s = new net.Socket()
-                s.setTimeout(1200)
-                s.on('connect', () => { s.destroy(); resolve(true) })
-                s.on('timeout', () => { s.destroy(); resolve(false) })
-                s.on('error', () => { s.destroy(); resolve(false) })
-                s.connect(port, host)
-              })
-              const statuses = []
-              for (const p of probes) {
-                const up = await checkPort(p.host, p.port)
-                statuses.push(`${p.name}: ${up ? 'ONLINE' : 'DOWN'}`)
-              }
-              result = statuses.join(', ')
-            } catch (err) {
-              result = `Probe error: ${err.message}`
-            }
-            this.hub.hook(this.s, 'PostToolUse')
-          }
-
-          this.history.push({
-            role: 'tool',
-            tool_call_id: tc.id,
-            content: result
-          })
-        }
-
-        // Second call for conversational summary
-        res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openrouterKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: this.a.model || 'deepseek/deepseek-chat',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              ...this.history
-            ],
-            max_tokens: 80
-          })
-        })
-        data = await res.json()
-        choice = data.choices?.[0]?.message
-      }
-
-      const reply = choice?.content?.trim() || "Done."
-      this.history.push({ role: 'assistant', content: reply })
-
-      this.hub.reply(this.s, reply, 'reply')
-      this.finish('done')
-    } catch (e) {
-      this.note('order error:', e.message)
-      this.hub.reply(this.s, `Sorry, ${e.message}`, 'error')
-      this.finish('error', e.message)
     }
+    this.busy = false
+  }
+  system(device) {
+    return `You are ${this.a.name ?? this.a.id}, one of ${Owner}'s agents, running on ${Owner}'s hub on this computer. ` +
+      `${Owner} talks to you by voice from a watch or a phone. Use the tools to act, and never claim you did something a tool didn't do. ` +
+      `If a tool fails or is declined, say so plainly. Your reply is spoken aloud: plain sentences, no markdown or emoji, at most ${wordsFor(device)} words.`
+  }
+  async turnFor(item) {
+    const turn = [{ role: 'user', content: `${markFor(item.device)} ${item.text}` }]
+    const tools = hermesTools(this.cfg)
+    for (let round = 0; ; round++) {
+      const last = round === HERMES_ROUNDS                          // out of rounds: an answer, no more tools
+      const msg = await this.complete([...this.turns.flat(), ...turn], last ? null : tools, item.device)
+      turn.push(msg)
+      if (!msg.tool_calls?.length) {
+        this.turns.push(turn); this.turns = this.turns.slice(-HERMES_TURNS)   // whole turns: a tool result never loses its call
+        return msg.content ?? ''
+      }
+      for (const tc of msg.tool_calls) turn.push({ role: 'tool', tool_call_id: tc.id, content: await this.tool(tc) })
+    }
+  }
+  async complete(messages, tools, device) {
+    const cfg = this.cfg
+    const base = (this.a.baseUrl ?? cfg.hermesBaseUrl ?? 'https://openrouter.ai/api/v1').replace(/\/+$/, '')
+    const key = this.a.apiKey ?? cfg.hermesApiKey ?? process.env.OPENROUTER_API_KEY
+    if (!key && base.includes('openrouter.ai')) throw Object.assign(new Error('no API key'), { spoken: 'No API key is set for Hermes.' })
+    let res
+    try {
+      res = await fetch(`${base}/chat/completions`, {
+        method: 'POST', signal: AbortSignal.timeout(HERMES_TIMEOUT),
+        headers: { 'content-type': 'application/json', ...(key ? { authorization: `Bearer ${key}` } : {}) },
+        body: JSON.stringify({ model: this.a.model || cfg.hermesModel || 'deepseek/deepseek-chat', max_tokens: 400,
+          messages: [{ role: 'system', content: this.system(device) }, ...messages], ...(tools?.length ? { tools } : {}) }),
+      })
+    } catch (e) {
+      throw Object.assign(new Error(e.message), { spoken: e.name === 'TimeoutError' ? 'The model took too long to answer.' : "I couldn't reach the model." })
+    }
+    if (!res.ok) {
+      const detail = (await res.text().catch(() => '')).slice(0, 500)
+      const spoken = res.status === 401 || res.status === 403 ? 'The model refused the API key.'
+        : res.status === 429 ? 'The model is rate limited. Try again in a minute.' : `The model answered with an error, ${res.status}.`
+      throw Object.assign(new Error(`HTTP ${res.status}`), { spoken, detail: `HTTP ${res.status} ${detail}` })
+    }
+    const msg = (await res.json().catch(() => null))?.choices?.[0]?.message
+    if (!msg) throw Object.assign(new Error('no message'), { spoken: 'The model gave no answer.' })
+    return { role: 'assistant', content: msg.content ?? null, ...(msg.tool_calls?.length ? { tool_calls: msg.tool_calls } : {}) }
+  }
+  /// Runs one tool call; what comes back is the tool's result, said to the model (never thrown).
+  async tool(tc) {
+    let args = {}
+    try { args = JSON.parse(tc.function?.arguments || '{}') } catch { return 'The arguments were not valid JSON.' }
+    const name = tc.function?.name
+    const run = { bash: () => this.bash(args), home_assistant: () => this.homeAssistant(args), weather: () => this.weather(args), homelab_status: () => this.homelab() }[name]
+    if (!run || !hermesTools(this.cfg).some(t => t.function.name === name)) return `Unknown tool ${name}.`
+    try { return await run() } catch (e) { return `Failed: ${e.message}` }
+  }
+  /// A PreToolUse and its PostToolUse (or PostToolUseFailure), around what `work` does.
+  async hooked(tool, input, work) {
+    this.hub.hook(this.s, 'PreToolUse', { tool, input })
+    try {
+      const { result, ok = true } = await work()
+      if (ok) this.hub.hook(this.s, 'PostToolUse', { tool, result: JSON.stringify({ is_error: false }) })
+      else this.hub.hook(this.s, 'PostToolUseFailure', { tool, error: short(result, 80) })
+      return result
+    } catch (e) { this.hub.hook(this.s, 'PostToolUseFailure', { tool, error: short(e.message, 80) }); throw e }
+  }
+  async allowed(tool, description, input) {
+    if (!this.asksFirst) return true
+    return (await this.ask(tool, description, input).answer) === 'allow'
+  }
+  async bash({ command }) {
+    if (typeof command !== 'string' || !command.trim()) return 'No command given.'
+    if (!await this.allowed('Bash', 'Run a command', { command })) return `${Owner} declined to run it.`
+    return this.hooked('Bash', { command }, () => new Promise(resolve => {
+      execFile('/bin/sh', ['-c', command], { cwd: this.a.cwd, timeout: 8000, maxBuffer: 1 << 20, env: this.env() }, (err, stdout, stderr) => {
+        const out = `${stdout}${stderr ? `\n${stderr}` : ''}`.trim().slice(0, 2000)
+        if (!err) return resolve({ result: out || '(no output)' })
+        resolve({ ok: false, result: `${err.killed ? 'Timed out after 8 s' : `Exit code ${err.code}`}${out ? `: ${out}` : ''}` })
+      })
+    }))
+  }
+  async homeAssistant({ domain, service, entity_id }) {
+    const cfg = this.cfg, domains = cfg.hassDomains ?? HASS_DOMAINS
+    if (!domains.includes(domain)) return `The domain must be one of ${domains.join(', ')}.`
+    if (!/^[a-z_]+$/.test(service ?? '')) return 'The service must be a name like turn_on.'
+    if (!new RegExp(`^${domain}\\.[a-z0-9_]+$`).test(entity_id ?? '')) return `The entity must be one in ${domain}, like ${domain}.living_room.`
+    const url = (cfg.hassUrl ?? process.env.HASS_URL ?? 'http://homeassistant.local:8123').replace(/\/+$/, '')
+    const token = cfg.hassToken ?? process.env.HASS_TOKEN
+    if ((cfg.hassConfirm ?? HASS_CONFIRM).includes(domain) && !await this.allowed('Home Assistant', `${service.replace(/_/g, ' ')} ${entity_id}`, { command: `${domain}.${service} ${entity_id}` }))
+      return `${Owner} declined it.`
+    return this.hooked('Home Assistant', { command: `${domain}.${service} ${entity_id}` }, async () => {
+      let res
+      try {
+        res = await fetch(`${url}/api/services/${domain}/${service}`, { method: 'POST', signal: AbortSignal.timeout(5000),
+          headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ entity_id }) })
+      } catch (e) { return { ok: false, result: `Home Assistant at ${url} didn't answer (${e.cause?.code ?? e.message}).` } }
+      if (res.ok) return { result: `${domain}.${service} on ${entity_id}: done.` }
+      return { ok: false, result: res.status === 401 ? 'Home Assistant refused the token.' : `Home Assistant answered HTTP ${res.status}.` }
+    })
+  }
+  async weather({ location }) {
+    const home = this.cfg.weather
+    return this.hooked('Weather', { location: location || home.name }, async () => {
+      let place = home
+      if (location && location.toLowerCase() !== String(home.name ?? '').toLowerCase()) {
+        const g = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?count=1&name=${encodeURIComponent(location)}`, { signal: AbortSignal.timeout(4000) })).json()
+        if (!g.results?.length) return { ok: false, result: `No place called ${location}.` }
+        place = { name: g.results[0].name, latitude: g.results[0].latitude, longitude: g.results[0].longitude }
+      }
+      const w = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m`, { signal: AbortSignal.timeout(4000) })).json()
+      const c = w.current
+      if (!c) return { ok: false, result: 'The weather service gave no reading.' }
+      return { result: `${place.name ?? 'Home'}: ${c.temperature_2m}°C, humidity ${c.relative_humidity_2m}%, wind ${c.wind_speed_10m} km/h.` }
+    })
+  }
+  async homelab() {
+    const probes = this.cfg.homelab
+    return this.hooked('Homelab', { target: probes.map(p => p.name).join(', ') }, async () => {
+      const up = await Promise.all(probes.map(p => portOpen(p.host, p.port)))
+      return { result: probes.map((p, i) => `${p.name}: ${up[i] ? 'up' : 'down'}`).join(', ') }
+    })
   }
 }
 

@@ -20,6 +20,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import net from 'node:net'
 import { lines, wsUnix, peer } from './jsonrpc.mjs'
 import { standingFor, WATCH_GUIDE, MAX_WORDS, Owner, markFor, wordsFor } from './standing.mjs'
 
@@ -629,6 +630,30 @@ const HERMES_TOOLS = [
         required: ['domain', 'service']
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'weather',
+      description: 'Get current local weather conditions and temperature for Brisbane / Southside.',
+      parameters: {
+        type: 'object',
+        properties: {
+          location: { type: 'string', description: 'Location, defaults to Brisbane' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'homelab_status',
+      description: 'Check connectivity of homelab services (Unraid/Apollo, Home Assistant, Ollama, Plex).',
+      parameters: {
+        type: 'object',
+        properties: {}
+      }
+    }
   }
 ]
 
@@ -713,19 +738,77 @@ Reply in 1 or 2 punchy, conversational sentences under 25 words suitable for spe
             const label = `${args.domain}.${args.service} (${args.entity_id || ''})`
             this.hub.hook(this.s, 'PreToolUse', { tool: 'HA', input: { command: label } })
             try {
-              const haRes = await fetch(`http://192.168.4.250:8123/api/services/${args.domain}/${args.service}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ entity_id: args.entity_id }),
-                signal: AbortSignal.timeout(3000)
-              })
-              if (haRes.ok) {
-                result = `Service ${args.domain}.${args.service} executed successfully.`
+              let hassToken = process.env.HASS_TOKEN
+              let hassUrl = process.env.HASS_URL || 'http://192.168.4.250:8123'
+              const cfgPath = path.join(REAL_HOME, '.chums/config.json')
+              if (fs.existsSync(cfgPath)) {
+                try {
+                  const c = JSON.parse(fs.readFileSync(cfgPath, 'utf8'))
+                  if (c.hassToken) hassToken = c.hassToken
+                  if (c.hassUrl) hassUrl = c.hassUrl
+                } catch {}
+              }
+
+              if (!hassToken) {
+                result = 'Home Assistant access token is not configured in ~/.chums/config.json (add hassToken).'
               } else {
-                result = `Home Assistant returned HTTP ${haRes.status}`
+                const haRes = await fetch(`${hassUrl}/api/services/${args.domain}/${args.service}`, {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${hassToken}`,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({ entity_id: args.entity_id }),
+                  signal: AbortSignal.timeout(3000)
+                })
+                if (haRes.ok) {
+                  result = `Service ${args.domain}.${args.service} executed successfully.`
+                } else {
+                  result = `Home Assistant returned HTTP ${haRes.status}`
+                }
               }
             } catch (err) {
               result = `Failed: Home Assistant host at 192.168.4.250:8123 is down or unreachable (${err.message})`
+            }
+            this.hub.hook(this.s, 'PostToolUse')
+          } else if (fn.name === 'weather') {
+            this.hub.hook(this.s, 'PreToolUse', { tool: 'Weather', input: { location: args.location || 'Brisbane' } })
+            try {
+              const wRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-27.4698&longitude=153.0251&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m', {
+                signal: AbortSignal.timeout(4000)
+              })
+              const wData = await wRes.json()
+              const cur = wData.current
+              result = `Brisbane current weather: ${cur.temperature_2m}°C, humidity ${cur.relative_humidity_2m}%, wind speed ${cur.wind_speed_10m} km/h.`
+            } catch (err) {
+              result = `Weather check error: ${err.message}`
+            }
+            this.hub.hook(this.s, 'PostToolUse')
+          } else if (fn.name === 'homelab_status') {
+            this.hub.hook(this.s, 'PreToolUse', { tool: 'Homelab', input: { target: 'Apollo' } })
+            try {
+              const probes = [
+                { name: 'Apollo Host', host: '192.168.4.250', port: 80 },
+                { name: 'Home Assistant', host: '192.168.4.250', port: 8123 },
+                { name: 'Ollama GPU', host: '192.168.4.250', port: 11434 },
+                { name: 'Plex', host: '192.168.4.250', port: 32400 }
+              ]
+              const checkPort = (host, port) => new Promise(resolve => {
+                const s = new net.Socket()
+                s.setTimeout(1200)
+                s.on('connect', () => { s.destroy(); resolve(true) })
+                s.on('timeout', () => { s.destroy(); resolve(false) })
+                s.on('error', () => { s.destroy(); resolve(false) })
+                s.connect(port, host)
+              })
+              const statuses = []
+              for (const p of probes) {
+                const up = await checkPort(p.host, p.port)
+                statuses.push(`${p.name}: ${up ? 'ONLINE' : 'DOWN'}`)
+              }
+              result = statuses.join(', ')
+            } catch (err) {
+              result = `Probe error: ${err.message}`
             }
             this.hub.hook(this.s, 'PostToolUse')
           }

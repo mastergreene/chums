@@ -28,7 +28,7 @@ const CHANNEL = path.join(ROOT, 'channel/chums-channel.mjs')
 const REAL_HOME = os.userInfo().homedir                    // the CLIs' logins live there, whatever HOME the hub has
 const VERSION = '0.1.0'
 
-export const RUNTIMES = ['claude', 'codex', 'copilot', 'acp']
+export const RUNTIMES = ['hermes', 'claude', 'codex', 'copilot', 'acp']
 /// Agents whose process the hub runs (not a Claude Code session in its own terminal).
 export const runByHub = a => !!a.runtime && a.runtime !== 'claude'
 
@@ -598,10 +598,78 @@ class CodexRunner extends Runner {
   }
 }
 
+// ---------- Hermes / OpenRouter native agent runner ----------
+class HermesRunner extends Runner {
+  constructor(agent, hub) {
+    super(agent, hub)
+    this.sid = crypto.randomUUID()
+    this.history = []
+  }
+  async run() {
+    this.join('startup')
+  }
+  async order(item) {
+    this.newTurn(item.device === 'watch')
+    const prompt = item.said || item.text
+    try {
+      let openrouterKey = process.env.OPENROUTER_API_KEY
+      if (!openrouterKey) {
+        const authPath = path.join(REAL_HOME, '.local/share/opencode/auth.json')
+        if (fs.existsSync(authPath)) {
+          const auth = JSON.parse(fs.readFileSync(authPath, 'utf8'))
+          openrouterKey = auth.openrouter?.key
+        }
+      }
+
+      const systemPrompt = `You are ${this.a.name}, Kash's AI assistant on his Android wearable communicator.
+Be calm, practical, concise, and helpful. No em dashes. No corporate filler.
+Reply in 1 or 2 punchy, conversational sentences under 25 words suitable for speech.`
+
+      this.history.push({ role: 'user', content: prompt })
+      if (this.history.length > 10) this.history = this.history.slice(-10)
+
+      this.hub.hook(this.s, 'PreToolUse', { tool: 'Task', input: { description: 'Thinking' } })
+
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openrouterKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: this.a.model || 'deepseek/deepseek-chat',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...this.history
+          ],
+          max_tokens: 80
+        })
+      })
+
+      if (!res.ok) {
+        const err = await res.text()
+        throw new Error(`OpenRouter HTTP ${res.status}: ${err}`)
+      }
+
+      const data = await res.json()
+      const reply = data.choices?.[0]?.message?.content?.trim() || "I'm here."
+      this.history.push({ role: 'assistant', content: reply })
+
+      this.hub.hook(this.s, 'PostToolUse')
+      this.hub.reply(this.s, reply, 'reply')
+      this.finish('done')
+    } catch (e) {
+      this.note('order error:', e.message)
+      this.hub.reply(this.s, `Sorry, ${e.message}`, 'error')
+      this.finish('error', e.message)
+    }
+  }
+}
+
 /// Starts one agent the hub runs (null for a runtime it doesn't know).
 export function startRunner(a, hub) {
   if (!RUNTIMES.includes(a.runtime) || !runByHub(a)) { hub.log(`${a.id}: unknown runtime ${a.runtime} (one of ${RUNTIMES.join(', ')})`); return null }
-  const r = new { codex: CodexRunner, copilot: CopilotRunner, acp: AcpRunner }[a.runtime](a, hub)
+  const r = new { hermes: HermesRunner, codex: CodexRunner, copilot: CopilotRunner, acp: AcpRunner }[a.runtime](a, hub)
   r.start()
   return r
 }

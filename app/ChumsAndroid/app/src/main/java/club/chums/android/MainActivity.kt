@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        hubClient = HubClient()
+        hubClient = HubClient(this)
         audioRecorder = AudioRecorder(this)
         audioPlayer = AudioPlayer(this)
 

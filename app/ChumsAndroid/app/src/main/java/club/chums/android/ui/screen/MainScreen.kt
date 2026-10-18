@@ -131,7 +131,10 @@ fun MainScreen(
             if (audioFile != null) {
                 localOverrideState = ChumsState.THINKING
                 scope.launch {
-                    hubClient.sendUtterance(audioFile, activeAgent)
+                    val res = hubClient.sendUtterance(audioFile, activeAgent)
+                    if (res?.transcript != null && res.transcript.isNotEmpty()) {
+                        latestSubtitle = "You: \"${res.transcript}\""
+                    }
                     localOverrideState = null
                 }
             }
@@ -266,7 +269,10 @@ fun MainScreen(
                                 if (audioFile != null) {
                                     localOverrideState = ChumsState.THINKING
                                     scope.launch {
-                                        hubClient.sendUtterance(audioFile, activeAgent)
+                                        val res = hubClient.sendUtterance(audioFile, activeAgent)
+                                        if (res?.transcript != null && res.transcript.isNotEmpty()) {
+                                            latestSubtitle = "You: \"${res.transcript}\""
+                                        }
                                         localOverrideState = null
                                     }
                                 }

@@ -17,6 +17,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import android.content.Context
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -24,9 +25,17 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 class HubClient(
-    private var baseUrl: String = "http://10.0.2.2:7717",
-    private var token: String = ""
+    private val context: Context? = null,
+    private var baseUrl: String = "http://192.168.5.3:7718",
+    private var token: String = "J0KQJUwc7vnX3EWBcOP3FX70"
 ) {
+    init {
+        context?.let { ctx ->
+            val prefs = ctx.getSharedPreferences("chums_prefs", Context.MODE_PRIVATE)
+            baseUrl = prefs.getString("hub_url", baseUrl) ?: baseUrl
+            token = prefs.getString("hub_token", token) ?: token
+        }
+    }
     private val tag = "HubClient"
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private val client = OkHttpClient.Builder()
@@ -58,6 +67,13 @@ class HubClient(
     fun updateConfig(url: String, newToken: String) {
         baseUrl = url.trimEnd('/')
         token = newToken
+        context?.let { ctx ->
+            ctx.getSharedPreferences("chums_prefs", Context.MODE_PRIVATE)
+                .edit()
+                .putString("hub_url", baseUrl)
+                .putString("hub_token", token)
+                .apply()
+        }
         restart()
     }
 

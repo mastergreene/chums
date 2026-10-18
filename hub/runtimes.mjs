@@ -599,6 +599,39 @@ class CodexRunner extends Runner {
 }
 
 // ---------- Hermes / OpenRouter native agent runner ----------
+const HERMES_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'bash',
+      description: 'Run a shell command on the host to check files, processes, network, or perform actions.',
+      parameters: {
+        type: 'object',
+        properties: {
+          command: { type: 'string', description: 'The shell command to execute' }
+        },
+        required: ['command']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'home_assistant',
+      description: 'Control Home Assistant devices and lights (e.g. light.living_room, light.dining_room, switch).',
+      parameters: {
+        type: 'object',
+        properties: {
+          domain: { type: 'string', description: 'Domain: light, switch, climate, media_player' },
+          service: { type: 'string', description: 'Service: turn_on, turn_off, toggle' },
+          entity_id: { type: 'string', description: 'Entity ID, e.g. light.living_room' }
+        },
+        required: ['domain', 'service']
+      }
+    }
+  }
+]
+
 class HermesRunner extends Runner {
   constructor(agent, hub) {
     super(agent, hub)
@@ -623,6 +656,8 @@ class HermesRunner extends Runner {
 
       const systemPrompt = `You are ${this.a.name}, Kash's AI assistant on his Android wearable communicator.
 Be calm, practical, concise, and helpful. No em dashes. No corporate filler.
+Always execute actions using the provided tools (bash, home_assistant) when asked to do something.
+If an action fails (e.g. Home Assistant host is down), state the fact honestly.
 Reply in 1 or 2 punchy, conversational sentences under 25 words suitable for speech.`
 
       this.history.push({ role: 'user', content: prompt })
@@ -630,7 +665,7 @@ Reply in 1 or 2 punchy, conversational sentences under 25 words suitable for spe
 
       this.hub.hook(this.s, 'PreToolUse', { tool: 'Task', input: { description: 'Thinking' } })
 
-      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      let res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${openrouterKey}`,
@@ -642,7 +677,8 @@ Reply in 1 or 2 punchy, conversational sentences under 25 words suitable for spe
             { role: 'system', content: systemPrompt },
             ...this.history
           ],
-          max_tokens: 80
+          tools: HERMES_TOOLS,
+          max_tokens: 150
         })
       })
 
@@ -651,11 +687,79 @@ Reply in 1 or 2 punchy, conversational sentences under 25 words suitable for spe
         throw new Error(`OpenRouter HTTP ${res.status}: ${err}`)
       }
 
-      const data = await res.json()
-      const reply = data.choices?.[0]?.message?.content?.trim() || "I'm here."
+      let data = await res.json()
+      let choice = data.choices?.[0]?.message
+      if (!choice) throw new Error('No response from model')
+
+      // Handle tool execution
+      if (choice.tool_calls?.length) {
+        this.history.push(choice)
+        for (const tc of choice.tool_calls) {
+          const fn = tc.function
+          let args = {}
+          try { args = JSON.parse(fn.arguments) } catch {}
+          let result = ''
+
+          if (fn.name === 'bash') {
+            this.hub.hook(this.s, 'PreToolUse', { tool: 'Bash', input: { command: args.command } })
+            try {
+              const out = execFileSync('/bin/sh', ['-c', args.command], { timeout: 8000, encoding: 'utf8' })
+              result = out.slice(0, 1000)
+            } catch (err) {
+              result = `Error: ${err.message}`
+            }
+            this.hub.hook(this.s, 'PostToolUse')
+          } else if (fn.name === 'home_assistant') {
+            const label = `${args.domain}.${args.service} (${args.entity_id || ''})`
+            this.hub.hook(this.s, 'PreToolUse', { tool: 'HA', input: { command: label } })
+            try {
+              const haRes = await fetch(`http://192.168.4.250:8123/api/services/${args.domain}/${args.service}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entity_id: args.entity_id }),
+                signal: AbortSignal.timeout(3000)
+              })
+              if (haRes.ok) {
+                result = `Service ${args.domain}.${args.service} executed successfully.`
+              } else {
+                result = `Home Assistant returned HTTP ${haRes.status}`
+              }
+            } catch (err) {
+              result = `Failed: Home Assistant host at 192.168.4.250:8123 is down or unreachable (${err.message})`
+            }
+            this.hub.hook(this.s, 'PostToolUse')
+          }
+
+          this.history.push({
+            role: 'tool',
+            tool_call_id: tc.id,
+            content: result
+          })
+        }
+
+        // Second call for conversational summary
+        res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openrouterKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: this.a.model || 'deepseek/deepseek-chat',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...this.history
+            ],
+            max_tokens: 80
+          })
+        })
+        data = await res.json()
+        choice = data.choices?.[0]?.message
+      }
+
+      const reply = choice?.content?.trim() || "Done."
       this.history.push({ role: 'assistant', content: reply })
 
-      this.hub.hook(this.s, 'PostToolUse')
       this.hub.reply(this.s, reply, 'reply')
       this.finish('done')
     } catch (e) {

@@ -15,7 +15,11 @@ enum class ChumsState {
     BLOCKED,
     DIZZY,
     ERROR,
-    SLEEP
+    SLEEP,
+    COMPACTING,
+    LIMITED,
+    RECONNECTING,
+    UNKNOWN
 }
 
 @Serializable

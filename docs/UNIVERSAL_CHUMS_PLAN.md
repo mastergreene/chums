@@ -10,7 +10,8 @@ A character skin (Garfield, Peeps, Squint, Ray) is independent of agent identity
 ## Existing vs needed
 - Existing: Android Compose app; Hub with session, approvals and voice; Claude Code hooks and Codex app-server adapters; Garfield rig; a custom OpenAI-compatible HermesRunner.
 - This branch: independently selectable native Garfield, Peeps, Squint and Ray faces; Peeps/Squint are initial Compose interpretations, not exact original Swift ports.
-- Needed: live Hermes Agent integration, proper roster, full artifact parity, Android device QA, Wear OS client, custom pendant client.
+- Implemented in this draft: native Hermes ACP adapter, Android roster and recent conversation/text input, explicit state mapping, scoped approval details, native character registry and CI coverage.
+- Still needed: real Hermes deployment QA, shared attachment to existing messaging sessions, full artifact parity, Android device QA, Wear OS client, custom pendant client.
 - Important: the custom HermesRunner is NOT the user's actual Hermes Agent install. Preserve it only as a labelled standalone fallback; never pretend its short in-memory session is the native Hermes memory.
 
 ## Phase 0 — security
@@ -33,3 +34,17 @@ Define versioned device events for idle, sleep, listening, thinking, working, sp
 
 ## Acceptance gate
 A demonstrable end-to-end journey: select Garfield, speak from Android, watch real upstream status and tools, receive a response, approve a scoped action, switch to Patch without cross-contamination, change Peeps/Squint visual skin without changing agent, and reconnect without duplicating history. Then repeat with Claude Code and Codex before claiming complete parity.
+
+
+## Validation for the review fixes
+
+- Passed locally: channel suite, standalone Hermes tool-loop suite, native Hermes ACP contract suite.
+- Native ACP contract covers distinct saved sessions, agent-specific denial, command previews,
+  preserving Hermes identity and restoring sessions without speaking replayed history.
+- Android build/lint/unit tests could not start locally: Gradle distribution download was
+  refused by this environment's network. CI now runs debug/release compilation, lint and unit tests.
+- Codex stand-in startup is blocked locally by Unix socket `listen EPERM`; this is an
+  environment restriction, not a diagnosed Codex defect. macOS CI retains the runtime suite.
+- Physical device QA and real Hermes compatibility remain required; keep this PR draft.
+
+- The broader hub suite reached its artifact checks but failed on this Linux host (null rendered artifact); macOS rendering validation remains with CI.

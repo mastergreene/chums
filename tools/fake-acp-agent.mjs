@@ -81,7 +81,7 @@ readline.createInterface({ input: process.stdin }).on('line', l => {
     case 'initialize':
       return send({ id: m.id, result: { protocolVersion: 1, agentCapabilities: { loadSession: true }, agentInfo: { name: 'fake-acp', version: '1' }, authMethods: [] } })
     case 'session/new': {
-      const sessionId = `fake-${Date.now()}`
+      const sessionId = `fake-${process.pid}-${Date.now()}`
       sessions.set(sessionId, m.params)
       return send({ id: m.id, result: { sessionId } })
     }

@@ -42,6 +42,26 @@ jobs:
       - name: Runtimes test (Codex, Copilot and ACP drivers against stand-ins; no model calls)
         run: node tools/test-runtimes.mjs
 
+      - name: Standalone Hermes tool loop
+        run: node tools/test-hermes.mjs
+      - name: Native Hermes ACP contract
+        run: node tools/test-hermes-native.mjs
+
+  android-build:
+    name: Android build, lint and unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew assembleDebug assembleRelease lintDebug testDebugUnitTest
+        working-directory: app/ChumsAndroid
+
   app-build:
     name: Watch and iPhone apps build (Simulator, unsigned)
     # the app targets watchOS 26, so it needs Xcode 26

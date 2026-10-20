@@ -29,7 +29,7 @@ const CHANNEL = path.join(ROOT, 'channel/chums-channel.mjs')
 const REAL_HOME = os.userInfo().homedir                    // the CLIs' logins live there, whatever HOME the hub has
 const VERSION = '0.1.0'
 
-export const RUNTIMES = ['hermes', 'claude', 'codex', 'copilot', 'acp']
+export const RUNTIMES = ['hermes-agent', 'hermes', 'claude', 'codex', 'copilot', 'acp']
 /// Agents whose process the hub runs (not a Claude Code session in its own terminal).
 export const runByHub = a => !!a.runtime && a.runtime !== 'claude'
 
@@ -193,9 +193,13 @@ class AcpRunner extends Runner {
     if (this.a.sessionId && init.agentCapabilities?.loadSession) {
       this.loading = true                                     // the agent replays the conversation: none of it is news
       try { await this.rpc.request('session/load', { sessionId: this.a.sessionId, cwd: this.a.cwd, mcpServers }, 120_000); resumed = true }
-      catch (e) { this.note(`couldn't load ${this.a.sessionId}: ${e.message}; starting a new one`) }
+      catch (e) {
+        if (this.a.runtime === 'hermes-agent') throw new Error('Hermes could not resume the saved session; refusing to replace it')
+        this.note(`couldn't load ${this.a.sessionId}: ${e.message}; starting a new one`)
+      }
       this.loading = false
     }
+    if (!resumed && this.a.runtime === 'hermes-agent' && this.a.sessionId) throw new Error('This Hermes adapter cannot load the saved session')
     if (!resumed) {
       const r = await this.rpc.request('session/new', { cwd: this.a.cwd, mcpServers }, 120_000)
       this.hub.saveSessionId(this.a.id, r.sessionId)
@@ -209,7 +213,7 @@ class AcpRunner extends Runner {
     this.busy = true
     while (this.queue.length && this.s) {
       const { text, device } = this.queue.shift()
-      const intro = this.primed ? '' : `[Standing instructions from Chums, for this whole conversation:]\n${standingFor(this.a)}\n${WATCH_GUIDE}\n\n`
+      const intro = this.primed ? '' : `[Standing instructions from Chums, for this whole conversation:]\n${this.a.runtime === 'hermes-agent' ? '' : standingFor(this.a)}\n${WATCH_GUIDE}\n\n`
       this.primed = true
       this.newTurn(true)
       try {
@@ -264,7 +268,16 @@ class AcpRunner extends Runner {
     if (known.chums || isChums(tc)) return pick('allow_once', 'allow_always')            // speaking to the watch is always allowed
     const { tool, input } = acpTool(tc)
     const behavior = await this.ask(tool, String(tc.title ?? tool), input).answer
-    return behavior === 'allow' ? pick('allow_once', 'allow_always') : pick('reject_once', 'reject_always')
+    return behavior === 'allow' ? pick('allow_once') : pick('reject_once')
+  }
+}
+
+// Native Hermes uses the installed agent's ACP protocol, tools and durable sessions.
+// Keep the legacy chat API runtime separate; it never connects to Hermes itself.
+class HermesAcpRunner extends AcpRunner {
+  command() { return this.a.command?.length ? super.command() : ['hermes', 'acp'] }
+  env(extra = {}) {
+    return super.env({ ...(this.a.hermesHome ? { HERMES_HOME: this.a.hermesHome } : {}), ...extra })
   }
 }
 
@@ -779,7 +792,7 @@ class HermesRunner extends Runner {
 /// Starts one agent the hub runs (null for a runtime it doesn't know).
 export function startRunner(a, hub) {
   if (!RUNTIMES.includes(a.runtime) || !runByHub(a)) { hub.log(`${a.id}: unknown runtime ${a.runtime} (one of ${RUNTIMES.join(', ')})`); return null }
-  const r = new { hermes: HermesRunner, codex: CodexRunner, copilot: CopilotRunner, acp: AcpRunner }[a.runtime](a, hub)
+  const r = new { 'hermes-agent': HermesAcpRunner, hermes: HermesRunner, codex: CodexRunner, copilot: CopilotRunner, acp: AcpRunner }[a.runtime](a, hub)
   r.start()
   return r
 }

@@ -6,7 +6,7 @@
   "description": "An Apple Watch and iPhone app for talking to the coding agents on your Mac (Claude Code and Codex), and its hub",
   "scripts": {
     "hub": "node hub/hub.mjs",
-    "test": "node tools/test-channel.mjs && CHUMS_TEST_NO_MODEL=1 node tools/test-hub.mjs && node tools/test-artifacts.mjs && node tools/test-runtimes.mjs"
+    "test": "node tools/test-channel.mjs && CHUMS_TEST_NO_MODEL=1 node tools/test-hub.mjs && node tools/test-artifacts.mjs && node tools/test-runtimes.mjs && node tools/test-hermes.mjs && node tools/test-hermes-native.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.20.0",

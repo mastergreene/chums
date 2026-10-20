@@ -177,7 +177,7 @@ async function seedSouls() {
 /// What a session should know about itself before an order: its soul and the team's, when it hasn't seen this version.
 function soulPrefix(s) {
   const a = agentNamed(s.name)
-  if (!a) return ''
+  if (!a || a.runtime === 'hermes-agent') return ''
   const rev = `${soulRev(a.id)}:${teamRev()}`
   if (s.soulSent === rev) return ''
   s.soulSent = rev
@@ -976,7 +976,7 @@ function replyFrom(s, text, status) {
 function askApproval(s, requestId, tool, description, inputPreview) {
   approvals.set(requestId, {
     requestId, sessionId: s.id, session: s.name, tool,
-    description, preview: String(inputPreview ?? '').slice(0, 600),
+    description, preview: String(inputPreview ?? ''),
     summary: summarize(tool, String(inputPreview ?? ''), description), at: Date.now(),
   })
   s.status = 'waiting'

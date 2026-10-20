@@ -290,3 +290,46 @@ Copilot's other first-party surfaces don't fit:
 
 The research behind these tables is from GitHub's and OpenAI's docs as of 2026-10-10. Hook details (timeouts,
 fail-open) are as documented, not re-tested here.
+
+
+## Native Hermes Agent (ACP)
+
+`runtime: "hermes-agent"` launches the installed `hermes acp` program. This is separate
+from `runtime: "hermes"`, which remains the standalone model API fallback described above.
+Hermes owns inference, tools, skills, memory and its durable ACP session. Chums forwards
+messages, tool progress and permission requests. It never executes Hermes tool calls locally
+or replaces the profile's identity with a Chums soul.
+
+Verify the installation with `hermes acp --check` first. Configure one entry per agent in
+`~/.chums/agents.json`, preserving existing entries and their session IDs:
+
+```json
+{
+  "id": "garfield",
+  "name": "Garfield",
+  "character": "garfield",
+  "runtime": "hermes-agent",
+  "cwd": "/absolute/path/to/workspace",
+  "hermesHome": "/absolute/path/to/existing/hermes/profile"
+}
+```
+
+`hermesHome` is optional; when supplied it becomes the child process's `HERMES_HOME`.
+Use a distinct configured Hermes profile/home for agents that require separate identity
+or memory. `command` can override the executable, for example
+`["/absolute/path/to/hermes", "acp"]`. A remote host can use an explicitly configured
+stdio-preserving SSH command; authentication and host verification must already work.
+No credentials are entered on the phone or copied into the repository.
+
+On first connection Hermes creates an ACP session. Its ID is saved in `agents.json`.
+A restart reloads that session. If Hermes refuses to load it, Chums fails rather than
+silently creating a replacement. This does not attach to a live Telegram, CLI or TUI
+conversation. Shared attachment to those conversations needs a separate gateway adapter.
+
+Permission cards answer only `allow_once` or `reject_once`; an adapter offering only
+permanent permission changes is cancelled. Hermes remains responsible for its tool policy;
+Chums cannot force a backend configured to auto-approve tools to request permission.
+
+Contract coverage: `node tools/test-hermes-native.mjs` uses a simulated ACP agent. A real
+installation and physical Android device must still be tested before deployment.
+Source protocol: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/developer-guide/programmatic-integration.md

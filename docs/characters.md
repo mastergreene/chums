@@ -68,3 +68,23 @@ records the Simulator's screen. `tools/readme-loops.sh` renders each character's
 4. Add an `avatar-<id>` image to `app/Shared/Characters.xcassets`. If the picture goes to its edges (rendered, not pixel
    art in the middle), add the id to `fullBleed` in `app/ChumsWatch/AgentFace.swift`.
 5. Check every state in the Simulator (`bin/chums-sim`, then the demo in Settings), and on the iPhone Simulator.
+
+
+## Android character contract v1
+
+`CharacterCatalog.kt` is the native Android registry: stable skin ID, display name and fallback.
+Agent ID, runtime, working directory and session ID are never derived from the selected skin.
+`AgentInfo.character` selects the default; the preview override changes rendering only.
+Unknown skin IDs render Ray. To add a custom native character, implement a Compose renderer
+accepting `ChumsState`, register its ID, and add its dispatch in `CharacterFace`.
+
+`data/StateContract.kt` maps wire statuses. Every renderer receives a defined pose:
+compacting falls back to thinking, limited/unknown to blocked, reconnecting to sleep.
+The separate visible status label preserves the actual state, regardless of fallback artwork.
+Provide idle, listening, thinking, working, subagents, speaking, done, needs-you, approval,
+blocked, error and sleep poses, or document the fallback for each. Character art must never
+hide the approval card, tool details or connection status. Test all states at phone and
+wearable sizes before calling a renderer complete. Peeps/Squint remain first-pass interpretations.
+
+This registry supports compiled native renderers. Loading downloadable image/animation packs
+and shared manifests across Apple, Android and future wearable clients remains future work.

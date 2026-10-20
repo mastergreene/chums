@@ -3,6 +3,12 @@ package club.chums.android.ui.components
 import android.os.Build
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -50,12 +56,14 @@ import kotlinx.coroutines.launch
 fun ApprovalCard(
     approval: Approval,
     onVerdict: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    error: String? = null
 ) {
     val view = LocalView.current
     val scope = rememberCoroutineScope()
-    var holdProgress by remember { mutableFloatStateOf(0f) }
-    var isHolding by remember { mutableStateOf(false) }
+    val currentVerdict by rememberUpdatedState(onVerdict)
+    var holdProgress by remember(approval.requestId) { mutableFloatStateOf(0f) }
+    var isHolding by remember(approval.requestId) { mutableStateOf(false) }
     val animatedProgress by animateFloatAsState(targetValue = holdProgress, label = "HoldProgress")
 
     Box(
@@ -83,7 +91,7 @@ fun ApprovalCard(
                 IconButton(
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                        onVerdict(false)
+                        currentVerdict(false)
                     },
                     modifier = Modifier.size(32.dp)
                 ) {
@@ -98,14 +106,28 @@ fun ApprovalCard(
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = approval.description.ifEmpty { approval.preview },
+                text = "Agent: ${approval.session}\n${approval.description}",
                 color = Color(0xFFECECEC),
                 fontSize = 14.sp,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis
+
             )
 
+            Text(
+                text = approval.preview.ifBlank { "No action details supplied. Deny if unsure." },
+                color = Color.White,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.heightIn(max = 160.dp).verticalScroll(rememberScrollState())
+            )
             Spacer(modifier = Modifier.height(16.dp))
+
+            error?.let { Text(it, color = Color(0xFFFFB74D)) }
+            var confirmAllow by remember(approval.requestId) { mutableStateOf(false) }
+            TextButton(onClick = { confirmAllow = !confirmAllow }) {
+                Text(if (confirmAllow) "Cancel confirmation" else "Review and allow")
+            }
+            if (confirmAllow) Button(onClick = { currentVerdict(true); confirmAllow = false }) {
+                Text("Confirm this action once")
+            }
 
             // Hold-to-Allow button
             Box(
@@ -114,7 +136,7 @@ fun ApprovalCard(
                     .height(48.dp)
                     .clip(RoundedCornerShape(99.dp))
                     .background(Color(0xFF221E2C))
-                    .pointerInput(Unit) {
+                    .pointerInput(approval.requestId) {
                         detectTapGestures(
                             onPress = {
                                 isHolding = true
@@ -128,7 +150,7 @@ fun ApprovalCard(
                                         holdProgress = p
                                         if (p >= 1f) {
                                             view.performHapticFeedback(if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.LONG_PRESS)
-                                            onVerdict(true)
+                                            currentVerdict(true)
                                             break
                                         }
                                         delay(16)

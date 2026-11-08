@@ -48,6 +48,18 @@ watch shell. All characters render on the same local WebView path, including
 Android 8 with an updated Android System WebView. Canvas checks verify rendering
 and state changes; they do not establish exact Swift physics or device parity.
 
+## Download the APK
+
+On GitHub, open **mastergreene/chums → Releases → ChumsOG Android Preview 0.2.0
+→ Assets → chumsog-android-preview.apk**. The published release is
+[here](https://github.com/mastergreene/chums/releases/tag/chumsog-android-preview-0.2.0).
+You do not need to download a GitHub Actions artifact.
+
+These previews use debug signing. If Android refuses to update an older preview
+because the signing key differs, uninstall that old preview before installing.
+Uninstalling removes its local messages and settings; save your hub connection
+settings first.
+
 ## Build and install
 
 Use JDK 17, Android SDK 34, Python 3 with Pillow, and `heif-convert` with

@@ -242,6 +242,8 @@ Apache License 2.0, for the code and the character art. See [LICENSE](LICENSE) a
 Chums is not affiliated with or endorsed by Anthropic, OpenAI, GitHub or Apple.
 # Android port: ChumsOG-for-android
 
+**Install:** [ChumsOG Android Preview 0.2.0](https://github.com/mastergreene/chums/releases/tag/chumsog-android-preview-0.2.0). Open **Assets**, then download **chumsog-android-preview.apk**.
+
 This branch ports the original Chums phone interface and all eight original
 characters to Android, using the original Mac hub and Claude Code/Codex setup.
 See [Android setup and the explicit parity checklist](docs/android-og.md).

@@ -240,3 +240,10 @@ you, point it at [AGENTS.md](AGENTS.md): it lists what the agent can do and what
 
 Apache License 2.0, for the code and the character art. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 Chums is not affiliated with or endorsed by Anthropic, OpenAI, GitHub or Apple.
+# Android port: ChumsOG-for-android
+
+This branch ports the original Chums phone interface and all eight original
+characters to Android, using the original Mac hub and Claude Code/Codex setup.
+See [Android setup and the explicit parity checklist](docs/android-og.md).
+Character artwork currently uses the original preview loops; state-specific
+Swift rigs and interactions are still being ported.

@@ -1,5 +1,14 @@
 # AGENTS.md
 
+## Android OG branch
+
+On `ChumsOG-for-android`, use [docs/android-og.md](docs/android-og.md) for the
+Android client and its acceptance checklist. Preserve the upstream hub, agent
+protocol and eight original character identities. Do not introduce Garfield,
+Hermes or replacement character designs in this branch. Skip Apple mobile
+device installation when the user is setting up Android only. Keep the original
+animation fidelity gaps explicit until real native rigs are ported and compared.
+
 Instructions for a coding agent (Claude Code, Codex or another) working in this repository: most often because its user
 asked it to "set up Chums", sometimes to change the code.
 

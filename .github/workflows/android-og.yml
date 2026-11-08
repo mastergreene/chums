@@ -1,0 +1,98 @@
+name: Chums OG Android build and preview
+
+on:
+  push:
+    branches: [ChumsOG-for-android]
+    paths: [.github/workflows/android-og.yml, 'app/ChumsAndroid/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chumsog-android-preview
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-34 build-tools;34.0.0
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew assembleDebug testDebugUnitTest lintDebug
+        working-directory: app/ChumsAndroid
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chumsog-preview-apk
+          path: app/ChumsAndroid/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: chumsog-preview-apk
+          path: preview
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const crypto = require('node:crypto');
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const tag = 'chumsog-android-preview-0.1.0';
+            const body = [
+              'Android port starting from the original lcoutodemos/chums source, with the original Mac hub and eight original characters.',
+              '',
+              'Download **chumsog-android-preview.apk** under Assets and open it on an Android phone (Android 8 or later). No GitHub Actions artifact download is needed.',
+              '',
+              'Includes the original-style conversation layout, all eight original character artworks, text/voice/files, agent cards and results. Character visuals currently use upstream preview loops; native state-driven rigs, gestures and full visual parity remain unfinished.',
+              '',
+              'Requires the updated Mac hub from the ChumsOG-for-android branch. Setup: https://github.com/mastergreene/chums/blob/ChumsOG-for-android/docs/android-og.md',
+              '',
+              'This is a debug preview. Compilation, JVM unit tests and lint are checked automatically; real phone and agent acceptance testing remains outstanding. Garfield and Hermes are outside this branch. Live device validation and state-specific character rigs are unfinished.',
+              '',
+              'Source commit: ' + context.sha
+            ].join('\n');
+            let release;
+            try {
+              release = (await github.rest.repos.getReleaseByTag({owner, repo, tag})).data;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              release = (await github.rest.repos.createRelease({
+                owner, repo, tag_name: tag, target_commitish: context.sha,
+                name: 'ChumsOG Android Preview 0.1.0', body, draft: true, prerelease: true
+              })).data;
+            }
+            if (!release.draft) {
+              core.info('This immutable preview is already published: ' + release.html_url);
+              return;
+            }
+            const apk = fs.readFileSync('preview/app-debug.apk');
+            const checksum = crypto.createHash('sha256').update(apk).digest('hex') + '  chumsog-android-preview.apk\n';
+            const existing = (await github.rest.repos.listReleaseAssets({owner, repo, release_id: release.id})).data;
+            for (const [name, data, type] of [
+              ['chumsog-android-preview.apk', apk, 'application/vnd.android.package-archive'],
+              ['SHA256.txt', Buffer.from(checksum), 'text/plain']
+            ]) {
+              if (existing.some(asset => asset.name === name)) continue;
+              await github.rest.repos.uploadReleaseAsset({
+                owner, repo, release_id: release.id, name, data,
+                headers: {'content-type': type, 'content-length': data.length}
+              });
+            }
+            const published = await github.rest.repos.updateRelease({
+              owner, repo, release_id: release.id, draft: false, prerelease: true
+            });
+            core.info('Published: ' + published.data.html_url);

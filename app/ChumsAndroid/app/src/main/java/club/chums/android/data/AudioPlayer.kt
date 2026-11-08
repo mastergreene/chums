@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.delay
 import java.io.File
 import java.util.Locale
 
@@ -25,6 +26,7 @@ class AudioPlayer(context: Context) : TextToSpeech.OnInitListener {
     private var mediaPlayer: MediaPlayer? = null
     private var tts: TextToSpeech? = TextToSpeech(this.context, this)
     private var ttsReady = false
+    private var mediaFailed = false
 
     private val _playing = MutableStateFlow(false)
     /// True from the start of a line until it has been heard (or failed).
@@ -45,6 +47,7 @@ class AudioPlayer(context: Context) : TextToSpeech.OnInitListener {
 
     /// Plays one line and returns once it has been heard, or after `maxMs`.
     suspend fun play(line: Spoken, baseUrl: String, token: String, maxMs: Long) {
+        mediaFailed = false
         when {
             line.audioData != null -> playBase64(line.audioData)
             line.audio != null -> playUrl("$baseUrl${line.audio}", token)
@@ -52,13 +55,19 @@ class AudioPlayer(context: Context) : TextToSpeech.OnInitListener {
         }
         withTimeoutOrNull(maxMs) { playing.first { !it } }
         if (_playing.value) stop()
+        if (mediaFailed) {
+            withTimeoutOrNull(1500) { while (!ttsReady) delay(50) }
+            speakText(line.text)
+            withTimeoutOrNull(maxMs) { playing.first { !it } }
+            if (_playing.value) stop()
+        }
     }
 
     private fun speakText(text: String) {
         stop()
         if (!ttsReady) return
         _playing.value = true
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, Bundle(), "reply_${System.nanoTime()}")
+        if (tts?.speak(text, TextToSpeech.QUEUE_FLUSH, Bundle(), "reply_${System.nanoTime()}") == TextToSpeech.ERROR) _playing.value = false
     }
 
     private suspend fun playUrl(url: String, token: String) = withContext(Dispatchers.Main) {
@@ -83,11 +92,12 @@ class AudioPlayer(context: Context) : TextToSpeech.OnInitListener {
                 source()
                 setOnPreparedListener { it.start() }
                 setOnCompletionListener { stop(); onEnd() }
-                setOnErrorListener { _, what, extra -> Log.e(tag, "MediaPlayer error $what/$extra"); stop(); onEnd(); true }
+                setOnErrorListener { _, what, extra -> Log.e(tag, "MediaPlayer error $what/$extra"); mediaFailed = true; stop(); onEnd(); true }
                 prepareAsync()
             }
         } catch (e: Exception) {
             Log.e(tag, "Can't play the line", e)
+            mediaFailed = true
             stop(); onEnd()
         }
     }

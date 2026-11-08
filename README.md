@@ -240,3 +240,8 @@ you, point it at [AGENTS.md](AGENTS.md): it lists what the agent can do and what
 
 Apache License 2.0, for the code and the character art. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 Chums is not affiliated with or endorsed by Anthropic, OpenAI, GitHub or Apple.
+
+## Android client
+
+The Android port for the Mac hub, using Claude Code and Codex, is in development.
+See [Android setup, supported features and device checks](docs/android.md).

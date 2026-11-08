@@ -45,6 +45,8 @@ import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -76,32 +78,25 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.clickable
 import club.chums.android.ChumsViewModel
 import club.chums.android.data.ChumsState
+import club.chums.android.data.stateFor
+import club.chums.android.data.runtimeLabel
 import club.chums.android.data.HubState
+import club.chums.android.data.Artifact
+import club.chums.android.ui.character.CharacterFace
+import club.chums.android.ui.character.characterCatalog
 import club.chums.android.ui.character.GarfieldRig
 import club.chums.android.ui.character.RayRig
+import club.chums.android.ui.character.PeepsRig
+import club.chums.android.ui.character.SquintRig
 import club.chums.android.ui.components.ApprovalCard
 import club.chums.android.ui.components.ToolBadge
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 import java.io.File
 
 /// Lines the phone doesn't say aloud: your own words, the hub's "Allowed." and auto mode's refusals (as on the watch).
 private val SILENT_KINDS = setOf("echo", "verdict", "refused")
-
-/// The face for the agent on screen, from its own session and its own approvals (never another agent's).
-private fun stateFor(hub: HubState?, agent: String): ChumsState {
-    if (hub == null) return ChumsState.SLEEP
-    val session = hub.sessions.find { it.name == agent }
-    if (hub.approvals.any { it.session == agent }) return ChumsState.APPROVAL
-    val status = session?.status ?: hub.agents?.find { it.id == agent }?.status
-    return when (status) {
-        "working", "compacting" -> if ((session?.subagents ?: 0) > 0) ChumsState.SUBAGENTS else ChumsState.WORKING
-        "waiting" -> ChumsState.NEEDS_YOU
-        "blocked" -> ChumsState.BLOCKED
-        "offline", null -> ChumsState.SLEEP
-        else -> ChumsState.IDLE
-    }
-}
 
 @Composable
 fun MainScreen(model: ChumsViewModel, isPttKeyPressed: Boolean = false) {
@@ -120,12 +115,21 @@ fun MainScreen(model: ChumsViewModel, isPttKeyPressed: Boolean = false) {
     var latestSubtitle by rememberSaveable { mutableStateOf<String?>(null) }
     var localOverrideState by remember { mutableStateOf<ChumsState?>(null) }
     var selectedAgent by rememberSaveable { mutableStateOf<String?>(null) }
+    // The face is a visual skin: switching it must not change agent sessions.
+    var showAgents by remember { mutableStateOf(false) }
+    var showHistory by remember { mutableStateOf(false) }
+    var previewFace by rememberSaveable { mutableStateOf("auto") }
+    var openArtifact by remember { mutableStateOf<Artifact?>(null) }
+    var runtimeError by remember { mutableStateOf<String?>(null) }
+    var changingRuntime by remember { mutableStateOf(false) }
+    var keyRecordingAgent by remember { mutableStateOf("ray") }
+    val supportedAgents = hubState?.agents.orEmpty().filter { it.runtime in setOf(null, "claude", "codex") }
 
     // the agent on screen: the one picked, else Garfield when it's up, else the first one up, else Garfield
     val activeAgent = selectedAgent
-        ?: hubState?.agents?.find { it.id == "garfield" && it.status != "offline" }?.id
-        ?: hubState?.agents?.find { it.status != "offline" }?.id
-        ?: "garfield"
+        ?: supportedAgents.find { it.status != "offline" }?.id
+        ?: supportedAgents.firstOrNull()?.id
+        ?: "ray"
     val currentAgent by rememberUpdatedState(activeAgent)
 
     val battery = rememberBatteryPercent()
@@ -134,7 +138,7 @@ fun MainScreen(model: ChumsViewModel, isPttKeyPressed: Boolean = false) {
     val derivedState = when {
         isTouchingPtt || isPttKeyPressed -> ChumsState.LISTENING
         localOverrideState != null -> localOverrideState!!
-        !isConnected -> ChumsState.SLEEP
+        !isConnected -> ChumsState.RECONNECTING
         else -> stateFor(hubState, activeAgent)
     }
 
@@ -152,26 +156,16 @@ fun MainScreen(model: ChumsViewModel, isPttKeyPressed: Boolean = false) {
         }
     }
 
-    suspend fun send(file: File) {
-        localOverrideState = ChumsState.THINKING
-        val res = hubClient.sendUtterance(file, currentAgent)
-        if (res == null) {
-            localOverrideState = ChumsState.ERROR
-            latestSubtitle = "The hub didn't get that."
-            delay(2500)
-        } else if (!res.transcript.isNullOrEmpty()) {
-            latestSubtitle = "You: \"${res.transcript}\""
-        }
-        if (localOverrideState == ChumsState.THINKING || localOverrideState == ChumsState.ERROR) localOverrideState = null
-    }
+    fun send(file: File, agent: String) { model.sendVoice(file, agent) }
 
     LaunchedEffect(isPttKeyPressed) {
         if (isPttKeyPressed) {
+            keyRecordingAgent = currentAgent
             audioPlayer.stop()
             view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            audioRecorder.startRecording()
+            if (!audioRecorder.startRecording()) latestSubtitle = "Microphone unavailable. Allow microphone access in Android Settings, or send text."
         } else {
-            audioRecorder.stopRecording()?.let { scope.launch { send(it) } }
+            audioRecorder.stopRecording()?.let { send(it, keyRecordingAgent) }
         }
     }
 
@@ -199,11 +193,7 @@ fun MainScreen(model: ChumsViewModel, isPttKeyPressed: Boolean = false) {
                     .background(Color(0xFF15101F))
                     .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(99.dp))
                     .clickable {
-                        val ids = hubState?.agents?.map { it.id }?.filter { it.isNotEmpty() }.orEmpty()
-                        if (ids.isNotEmpty()) {
-                            selectedAgent = ids[(ids.indexOf(activeAgent) + 1) % ids.size]
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        }
+                        showAgents = true
                     }
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -212,12 +202,12 @@ fun MainScreen(model: ChumsViewModel, isPttKeyPressed: Boolean = false) {
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(if (isConnected) Color(0xFF4CAF50) else Color(0xFFE64E4B))
+                        .background(if (!isConnected) Color(0xFFE64E4B) else if (supportedAgents.find { it.id == activeAgent }?.status == "offline") Color(0xFFFFB74D) else Color(0xFF4CAF50))
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 val name = hubState?.agents?.find { it.id == activeAgent }?.name ?: activeAgent.replaceFirstChar { it.uppercase() }
                 Text(
-                    text = if (isConnected) "$name ▾" else (lastError ?: "Offline"),
+                    text = if (isConnected) "$name · ${supportedAgents.find { it.id == activeAgent }?.status ?: "unavailable"} ▾" else (lastError ?: "Hub offline"),
                     color = Color(0xFFECECEC),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -262,8 +252,9 @@ fun MainScreen(model: ChumsViewModel, isPttKeyPressed: Boolean = false) {
             verticalArrangement = Arrangement.Center
         ) {
             Box(modifier = Modifier.size(rigSize), contentAlignment = Alignment.Center) {
-                if (activeAgent.contains("garfield", ignoreCase = true)) GarfieldRig(state = derivedState)
-                else RayRig(state = derivedState)
+                val agentFace = hubState?.agents?.find { it.id == activeAgent }?.character ?: activeAgent
+                val shownFace = if (previewFace == "auto") agentFace.lowercase() else previewFace
+                CharacterFace(shownFace, derivedState)
                 if (derivedState == ChumsState.WORKING || derivedState == ChumsState.SUBAGENTS) {
                     ToolBadge(
                         currentTool = hubState?.tools?.lastOrNull { it.session == activeAgent },
@@ -271,6 +262,32 @@ fun MainScreen(model: ChumsViewModel, isPttKeyPressed: Boolean = false) {
                     )
                 }
             }
+
+            Text(
+                text = derivedState.name.lowercase().replace('_', ' '),
+                color = Color.White, fontSize = 14.sp
+            )
+            val waitingElsewhere = hubState?.approvals?.count { it.session != activeAgent } ?: 0
+            if (waitingElsewhere > 0) TextButton(onClick = { showAgents = true }) {
+                Text("$waitingElsewhere request(s) from other agents")
+            }
+            TextButton(onClick = { showHistory = true }) { Text("Conversation and text message") }
+            if (model.pending.isNotEmpty()) TextButton(onClick = { showHistory = true }) {
+                Text("${model.pending.size} saved message(s) · review delivery")
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "Face: " + (if (previewFace == "auto") "Agent default" else previewFace.replaceFirstChar { it.uppercase() }),
+                color = Color(0xFFB0B0B0),
+                fontSize = 12.sp,
+                modifier = Modifier.clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFF15101F))
+                    .clickable {
+                        val faces = listOf("auto") + characterCatalog.map { it.id }
+                        previewFace = faces[(faces.indexOf(previewFace) + 1) % faces.size]
+                    }
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -293,11 +310,16 @@ fun MainScreen(model: ChumsViewModel, isPttKeyPressed: Boolean = false) {
         // BOTTOM: the agent's approval card, else the talk button
         val activeApproval = hubState?.approvals?.firstOrNull { it.session == activeAgent }
         if (activeApproval != null) {
-            ApprovalCard(
+            androidx.compose.runtime.key(activeApproval.requestId) {
+                var verdictError by remember { mutableStateOf<String?>(null) }
+                ApprovalCard(
                 approval = activeApproval,
-                onVerdict = { allow -> scope.launch { hubClient.verdict(activeApproval.requestId, allow) } },
+                onVerdict = { allow -> scope.launch {
+                    verdictError = if (hubClient.verdict(activeApproval.requestId, allow)) null else "Decision was not confirmed. Check your connection."
+                } },
+                error = verdictError,
                 modifier = Modifier.align(Alignment.BottomCenter)
-            )
+            ) }
         } else {
             Box(
                 modifier = Modifier
@@ -307,17 +329,26 @@ fun MainScreen(model: ChumsViewModel, isPttKeyPressed: Boolean = false) {
                     .clip(CircleShape)
                     .background(if (isTouchingPtt || isPttKeyPressed) Color(0xFFF5902F) else Color(0xFF15101F))
                     .border(1.5.dp, Color(0xFFF5902F), CircleShape)
-                    .pointerInput(Unit) {
-                        // currentAgent and send() are read when the press ends, so a switch of agent is followed
+                    .pointerInput(activeAgent) {
+                        // Bind the recording to the agent shown when the press starts.
                         detectTapGestures(
                             onPress = {
+                                val recordingAgent = currentAgent
                                 isTouchingPtt = true
                                 audioPlayer.stop()
                                 view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                audioRecorder.startRecording()
-                                tryAwaitRelease()
-                                isTouchingPtt = false
-                                audioRecorder.stopRecording()?.let { scope.launch { send(it) } }
+                                if (!audioRecorder.startRecording()) {
+                                    latestSubtitle = "Microphone unavailable. Allow microphone access in Android Settings, or send text."
+                                    isTouchingPtt = false
+                                    return@detectTapGestures
+                                }
+                                try {
+                                    val released = tryAwaitRelease()
+                                    audioRecorder.stopRecording()?.let { if (released) send(it, recordingAgent) else it.delete() }
+                                } finally {
+                                    isTouchingPtt = false
+                                    audioRecorder.cancelRecording()
+                                }
                             }
                         )
                     },
@@ -332,6 +363,53 @@ fun MainScreen(model: ChumsViewModel, isPttKeyPressed: Boolean = false) {
             }
         }
 
+        if (showAgents) AlertDialog(
+            onDismissRequest = { showAgents = false },
+            title = { Text("Agents") },
+            text = { Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text("Claude Code and Codex on your Mac. Agent conversations stay separate from their visual faces.")
+                supportedAgents.forEach { agent ->
+                    TextButton(onClick = {
+                        audioPlayer.stop()
+                        localOverrideState = null
+                        latestSubtitle = null
+                        selectedAgent = agent.id
+                        showAgents = false
+                    }) {
+                        val requests = hubState?.approvals?.count { it.session == agent.id } ?: 0
+                        Text("${agent.name} · ${agent.status}\n${runtimeLabel(agent.runtime)}\n$requests pending request(s)")
+                    }
+                    Row {
+                        listOf("claude" to "Claude Code", "codex" to "Codex").forEach { (runtime, label) ->
+                            TextButton(enabled = !changingRuntime && isConnected && agent.runtime != runtime && runtime in hubState?.runtimes.orEmpty(), onClick = {
+                                scope.launch {
+                                    changingRuntime = true
+                                    runtimeError = null
+                                    try { hubClient.setRuntime(agent.id, runtime) }
+                                    catch (e: Exception) { runtimeError = e.message ?: "Couldn't change agent" }
+                                    finally { changingRuntime = false }
+                                }
+                            }) { Text(label) }
+                        }
+                    }
+                }
+                if (supportedAgents.isEmpty()) Text("No Claude Code or Codex agents found. Start the agents on your Mac, then reconnect.")
+                runtimeError?.let { Text(it) }
+            } },
+            confirmButton = { TextButton(onClick = { showAgents = false }) { Text("Close") } }
+        )
+        if (showHistory) ConversationDialog(
+            agent = activeAgent,
+            lines = hubState?.spoken.orEmpty().filter { it.agent == activeAgent || (it.agent == null && it.session == activeAgent) },
+            onDismiss = { showHistory = false },
+            onSend = { text -> model.sendText(text, activeAgent) },
+            onArtifact = { openArtifact = it },
+            pending = model.pending.filter { it.agent == activeAgent },
+            sending = model.sending,
+            onRetry = { item -> scope.launch { model.retry(item) } },
+            onDiscard = { model.discard(it) }
+        )
+        openArtifact?.let { ArtifactDialog(it, hubClient, onDismiss = { openArtifact = null }) }
         if (showSettings) {
             SettingsDialog(
                 initialUrl = hubClient.getBaseUrl(),

@@ -1,6 +1,8 @@
 package club.chums.android.ui.screen
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +32,16 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import club.chums.android.data.validHubUrl
+import club.chums.android.HubConnectionService
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
 @Composable
 fun SettingsDialog(
@@ -42,12 +54,20 @@ fun SettingsDialog(
     var url by remember { mutableStateOf(initialUrl) }
     var token by remember { mutableStateOf(initialToken) }
     var volumeKeyTalks by remember { mutableStateOf(initialVolumeKeyTalks) }
+    val context = LocalContext.current
+    var background by remember { mutableStateOf(context.getSharedPreferences("chums_prefs", Context.MODE_PRIVATE).getBoolean("background_connection", false)) }
+    var notificationError by remember { mutableStateOf<String?>(null) }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed ->
+        if (allowed) { background = true; HubConnectionService.setEnabled(context, true) }
+        else notificationError = "Allow notifications to receive agent requests in the background."
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color(0xFF15101F), RoundedCornerShape(20.dp))
+                .verticalScroll(rememberScrollState())
                 .padding(20.dp)
         ) {
             Text(
@@ -55,14 +75,15 @@ fun SettingsDialog(
                 color = Color(0xFFECECEC),
                 fontSize = 18.sp
             )
+            Text("Connect to the Chums hub on your Mac. Use its HTTPS address and device token.", color = Color(0xFFB0B0B0), fontSize = 13.sp)
 
             Spacer(modifier = Modifier.height(16.dp))
 
             OutlinedTextField(
                 value = url,
                 onValueChange = { url = it },
-                label = { Text("Hub URL (its watch API)") },
-                placeholder = { Text("http://hub-address:7718") },
+                label = { Text("Mac hub address") },
+                placeholder = { Text("https://your-mac.your-tailnet.ts.net") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -81,7 +102,7 @@ fun SettingsDialog(
             OutlinedTextField(
                 value = token,
                 onValueChange = { token = it },
-                label = { Text("Watch token") },
+                label = { Text("Device token (watchToken)") },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -104,6 +125,20 @@ fun SettingsDialog(
             }
 
             Spacer(modifier = Modifier.height(20.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Keep connected in background", color = Color.White, modifier = Modifier.weight(1f))
+                Switch(checked = background, enabled = initialUrl.isNotBlank(), onCheckedChange = { enabled ->
+                    notificationError = null
+                    if (enabled && Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                        permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        background = enabled
+                        HubConnectionService.setEnabled(context, enabled)
+                    }
+                })
+            }
+            Text("Shows a persistent notification and uses battery. Tap agent alerts to review them in Chums.", color = Color(0xFFB0B0B0), fontSize = 12.sp)
+            notificationError?.let { Text(it, color = Color(0xFFFFB74D)) }
 
             Row(modifier = Modifier.fillMaxWidth()) {
                 TextButton(
@@ -114,8 +149,11 @@ fun SettingsDialog(
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(
-                    onClick = { onSave(url, token, volumeKeyTalks) },
-                    enabled = url.isNotBlank() && token.isNotBlank(),
+                    onClick = {
+                        onSave(url, token, volumeKeyTalks)
+                        if (background) HubConnectionService.setEnabled(context, true)
+                    },
+                    enabled = validHubUrl(url) && token.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF2AE08)),
                     modifier = Modifier.weight(1f)
                 ) {

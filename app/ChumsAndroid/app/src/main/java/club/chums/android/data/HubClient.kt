@@ -15,11 +15,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -63,6 +65,7 @@ class HubClient(context: Context) {
     val isConfigured: Boolean get() = baseUrl.isNotBlank() && token.isNotBlank()
 
     fun updateConfig(url: String, newToken: String) {
+        require(validHubUrl(url)) { "Enter an HTTP or HTTPS hub address without a password, query or fragment." }
         baseUrl = url.trim().trimEnd('/')
         token = newToken.trim()
         prefs.edit().putString("hub_url", baseUrl).putString("hub_token", token).apply()
@@ -107,6 +110,7 @@ class HubClient(context: Context) {
                     if (!resp.isSuccessful) throw HubError(if (resp.code == 401) "Wrong token" else "HTTP ${resp.code}")
                     json.decodeFromString<HubState>(resp.body?.string() ?: throw HubError("Empty answer"))
                 }
+                coroutineContext.ensureActive()
                 rev = parsed.rev
                 _hubState.value = parsed
                 _connected.value = true
@@ -131,44 +135,79 @@ class HubClient(context: Context) {
 
     private class HubError(message: String) : Exception(message)
 
-    suspend fun sendUtterance(file: File, agent: String, approvalId: String? = null): RouteResult? = withContext(Dispatchers.IO) {
+    suspend fun sendUtterance(file: File, agent: String, requestId: String): RouteResult = withContext(Dispatchers.IO) {
         val builder = request("/v1/utterance")
             .post(file.asRequestBody("audio/wav".toMediaType()))
             .header("X-Chums-Agent", agent)
             .header("X-Chums-Device", "phone")
-        if (approvalId != null) builder.header("X-Chums-Approval", approvalId)
-        try {
-            client.newCall(builder.build()).execute().use { resp ->
-                if (resp.isSuccessful) resp.body?.string()?.let { json.decodeFromString<RouteResult>(it) }
-                else { Log.e(tag, "sendUtterance failed: ${resp.code}"); null }
-            }
-        } catch (e: Exception) {
-            Log.e(tag, "sendUtterance error", e)
-            null
-        } finally {
-            file.delete()
+        builder.header("X-Chums-Request-Id", requestId)
+        client.newCall(builder.build()).execute().use { resp ->
+            json.decodeFromString<RouteResult>(responseText(resp))
         }
     }
 
     suspend fun verdict(requestId: String, allow: Boolean): Boolean = withContext(Dispatchers.IO) {
         val payload = json.encodeToString(VerdictRequest.serializer(), VerdictRequest(requestId, if (allow) "allow" else "deny"))
         try {
-            client.newCall(request("/v1/verdict").post(payload.toRequestBody("application/json".toMediaType())).build()).execute().use { it.isSuccessful }
+            client.newCall(request("/v1/verdict").post(payload.toRequestBody("application/json".toMediaType())).build()).execute().use {
+                if (!it.isSuccessful) false else json.decodeFromString<RouteResult>(it.body?.string() ?: "{}").let { result ->
+                    result.kind == "verdict" && result.confirmed == true
+                }
+            }
         } catch (e: Exception) {
             Log.e(tag, "verdict error", e)
             false
         }
     }
 
-    suspend fun say(text: String, agent: String, approvalId: String? = null): RouteResult? = withContext(Dispatchers.IO) {
-        val payload = json.encodeToString(SayRequest.serializer(), SayRequest(text = text, agent = agent, approval = approvalId))
-        try {
-            client.newCall(request("/v1/say").post(payload.toRequestBody("application/json".toMediaType())).build()).execute().use { resp ->
-                if (resp.isSuccessful) resp.body?.string()?.let { json.decodeFromString<RouteResult>(it) } else null
-            }
-        } catch (e: Exception) {
-            Log.e(tag, "say error", e)
-            null
+    suspend fun say(text: String, agent: String, requestId: String): RouteResult = withContext(Dispatchers.IO) {
+        val payload = json.encodeToString(SayRequest.serializer(), SayRequest(text = text, agent = agent))
+        client.newCall(request("/v1/say").header("X-Chums-Request-Id", requestId)
+            .post(payload.toRequestBody("application/json".toMediaType())).build()).execute().use { resp ->
+            json.decodeFromString<RouteResult>(responseText(resp))
         }
     }
+
+    suspend fun setRuntime(agent: String, runtime: String) = withContext(Dispatchers.IO) {
+        require(runtime in setOf("claude", "codex"))
+        require(agent.matches(Regex("[a-z0-9-]+")))
+        client.newCall(request("/v1/agents/$agent/runtime")
+            .post("{\"runtime\":\"$runtime\"}".toRequestBody("application/json".toMediaType())).build()).execute().use { responseText(it) }
+    }
+
+    suspend fun fetchArtifact(id: String, part: String): ByteArray = withContext(Dispatchers.IO) {
+        require(id.matches(Regex("[0-9a-f]{12}")))
+        require(part in setOf("full", "source", "view"))
+        client.newCall(request("/v1/artifact/$id/$part").get().build()).execute().use { response ->
+            if (!response.isSuccessful) throw HubError("Couldn't load result (HTTP ${response.code})")
+            val body = response.body ?: throw HubError("Empty result")
+            require(body.contentLength() <= 25 * 1024 * 1024) { "Result exceeds 25 MB" }
+            body.byteStream().use { input ->
+                val output = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    require(output.size() + count <= 25 * 1024 * 1024) { "Result exceeds 25 MB" }
+                    output.write(buffer, 0, count)
+                }
+                output.toByteArray()
+            }
+        }
+    }
+
+    private fun responseText(response: okhttp3.Response): String {
+        val body = response.body?.string().orEmpty()
+        if (!response.isSuccessful) throw HubError(when (response.code) {
+            401 -> "Wrong hub token. Check Settings."
+            409 -> "Delivery is uncertain. Check the agent conversation before sending again."
+            else -> "Hub returned HTTP ${response.code}. Your message is saved."
+        })
+        return body
+    }
+}
+
+fun validHubUrl(value: String): Boolean {
+    val url = value.trim().toHttpUrlOrNull() ?: return false
+    return url.username.isEmpty() && url.password.isEmpty() && url.query == null && url.fragment == null && url.encodedPath == "/"
 }

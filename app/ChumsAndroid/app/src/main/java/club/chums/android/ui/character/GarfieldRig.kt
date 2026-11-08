@@ -133,10 +133,11 @@ private enum class Pose { IDLE, LISTENING, THINKING, MESSAGE, ALERT, BASIC }
 private fun poseFor(state: ChumsState) = when (state) {
     ChumsState.IDLE, ChumsState.DONE -> Pose.IDLE
     ChumsState.LISTENING -> Pose.LISTENING
-    ChumsState.THINKING, ChumsState.WORKING, ChumsState.SUBAGENTS -> Pose.THINKING
+    ChumsState.COMPACTING, ChumsState.THINKING, ChumsState.WORKING, ChumsState.SUBAGENTS -> Pose.THINKING
     ChumsState.SPEAKING -> Pose.MESSAGE
     ChumsState.APPROVAL, ChumsState.NEEDS_YOU, ChumsState.BLOCKED, ChumsState.ERROR, ChumsState.DIZZY -> Pose.ALERT
-    ChumsState.SLEEP -> Pose.BASIC
+    ChumsState.LIMITED, ChumsState.UNKNOWN -> Pose.ALERT
+    ChumsState.RECONNECTING, ChumsState.SLEEP -> Pose.BASIC
 }
 
 /// One eye's numbers, left eye; the right is the same 40 units over unless its pupil looks the other way.

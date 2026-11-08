@@ -209,7 +209,7 @@
     if(disposed)return;if(!last)last=now;const dt=Math.min(.05,(now-last)/1000);last=now;
     if(!document.hidden){t+=dt;if(t-paintAt<1/24){requestAnimationFrame(render);return}paintAt=t;const wanted=normalized(input.state);if(state==='done'&&t>doneUntil&&wanted==='idle')transition('idle');
       const dpr=Math.min(devicePixelRatio||1,2),w=Math.round(innerWidth*dpr),h=Math.round(innerHeight*dpr);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h}
-      ctx.setTransform(w/198,0,0,h/242,0,0);ctx.clearRect(0,0,198,242);ctx.fillStyle='#000';ctx.fillRect(0,0,198,242);
+      ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#000';ctx.fillRect(0,0,w,h);const scale=Math.min(w/198,h/242);ctx.setTransform(scale,0,0,scale,(w-198*scale)/2,(h-242*scale)/2);
       const isStretch=input.id==='stretch';clipImage.style.display=isStretch?'block':'none';canvas.style.display=isStretch?'none':'block';
       if(isStretch)stretch();else if(input.id==='crunch'||input.id==='nana')PIX.draw(ctx,{species:input.id==='crunch'?'apple':'banana',cx:99,cy:(state==='working'?134:state==='needs'?146:state==='approval'?80:118)-(t-pokeAt<.6?Math.sin((t-pokeAt)/.6*Math.PI)*14:0),px:state==='approval'?3:7,t,state:state==='approval'?'needs':state,stateT:t-stateAt,look:look[0],eyeMode:t-petAt<1?'happy':undefined,text:input.caption||'',tools:input.tools||[],subagents:input.subagents||1,screen:{x:0,y:15,w:198,h:220},room:210,bang:state!=='approval'});
       else if(input.id==='peeps'||input.id==='squint')simpleFace(input.id);else if(input.id==='ray')drawRay();else if(input.id==='tangle')drawTangle();else drawNoodle();

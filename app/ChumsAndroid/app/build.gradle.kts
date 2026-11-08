@@ -58,7 +58,7 @@ android {
 }
 
 // Package the upstream artwork directly; keep one canonical copy in the repository.
-val originalArtwork by tasks.registering(Copy::class) {
+val originalArtwork by tasks.registering(Sync::class) {
     into(layout.buildDirectory.dir("generated/originalArtwork"))
     from(rootProject.file("../../design/pix/pix.js")) { into("renderer") }
     from(rootProject.file("../Shared/Characters.xcassets")) {
@@ -77,7 +77,7 @@ val liveCharacters by tasks.registering(Exec::class) {
     outputs.dir(output)
     commandLine("python3", rootProject.file("../../tools/export-android-characters.py").absolutePath, output.get().asFile.absolutePath)
 }
-val rendererAssets by tasks.registering(Copy::class) {
+val rendererAssets by tasks.registering(Sync::class) {
     dependsOn(liveCharacters)
     from(layout.buildDirectory.dir("generated/liveCharacters")) { exclude("**/*.sha256") }
     into(layout.buildDirectory.dir("generated/rendererAssets/renderer"))

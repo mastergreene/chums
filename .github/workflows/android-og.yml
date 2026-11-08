@@ -26,6 +26,12 @@ jobs:
         with:
           packages: platform-tools platforms;android-34 build-tools;34.0.0
       - uses: gradle/actions/setup-gradle@v4
+      - name: Verified Gradle distribution
+        run: |
+          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 30 --max-time 180 -H 'Accept: application/octet-stream' -H 'X-GitHub-Api-Version: 2022-11-28' https://api.github.com/repos/gradle/gradle-distributions/releases/assets/158106281 -o "$RUNNER_TEMP/gradle.zip"
+          echo "544c35d6bd849ae8a5ed0bcea39ba677dc40f49df7d1835561582da2009b961d  $RUNNER_TEMP/gradle.zip" | sha256sum --check
+          unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gradle-8.7/bin" >> "$GITHUB_PATH"
       - name: Original character asset conversion tools
         run: |
           sudo apt-get update -qq
@@ -36,7 +42,7 @@ jobs:
           cmake --install "$RUNNER_TEMP/libheif-build"
           echo "$RUNNER_TEMP/heif/bin" >> "$GITHUB_PATH"
           echo "LD_LIBRARY_PATH=$RUNNER_TEMP/heif/lib:$RUNNER_TEMP/heif/lib/x86_64-linux-gnu" >> "$GITHUB_ENV"
-      - run: ./gradlew assembleDebug testDebugUnitTest lintDebug
+      - run: gradle assembleDebug testDebugUnitTest lintDebug
         working-directory: app/ChumsAndroid
       - uses: actions/setup-node@v4
         with:

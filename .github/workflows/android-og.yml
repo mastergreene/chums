@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: chumsog-android-preview
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -72,6 +72,11 @@ jobs:
             const crypto = require('node:crypto');
             const owner = context.repo.owner;
             const repo = context.repo.repo;
+            const head = (await github.rest.repos.getBranch({owner, repo, branch: 'ChumsOG-for-android'})).data.commit.sha;
+            if (head !== context.sha) {
+              core.info('A newer branch build will publish the preview.');
+              return;
+            }
             const tag = 'chumsog-android-preview-0.2.0';
             const body = [
               'Android port starting from the original lcoutodemos/chums source, with the original Mac hub and eight original characters.',

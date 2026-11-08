@@ -25,6 +25,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import club.chums.android.ChumsViewModel
@@ -75,6 +78,10 @@ private fun OriginalHome(model: ChumsViewModel, isPttKeyPressed: Boolean) {
     val pending = model.pending.filter { it.agent == active.id }
     val approval = state?.approvals?.firstOrNull { it.session == active.id }
     val pose = when { recording -> ChumsState.LISTENING; speaking -> ChumsState.SPEAKING; !connected -> ChumsState.RECONNECTING; else -> stateFor(state, active.id) }
+    val activity = activityStatus(state, active, connected)
+    val recentTools = state?.tools.orEmpty().filter { it.session == active.id }
+    val currentTools = recentTools.drop(recentTools.indexOfLast { it.type == "stop" } + 1)
+    val lastReply = lines.lastOrNull { it.kind !in setOf("echo", "verdict", "refused") }
     fun startRecording(): Boolean {
         model.audioPlayer.stop(); recordingAgent = currentAgent
         recording = model.audioRecorder.startRecording()
@@ -88,6 +95,17 @@ private fun OriginalHome(model: ChumsViewModel, isPttKeyPressed: Boolean) {
     }
     LaunchedEffect(isPttKeyPressed) { if (isPttKeyPressed) startRecording() else if (recording) stopRecording() }
     DisposableEffect(Unit) { onDispose { model.audioRecorder.cancelRecording() } }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP && recording) {
+                model.audioRecorder.cancelRecording(); recording = false
+                notice = "Recording cancelled when Chums left the screen."
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
     LaunchedEffect(Unit) {
         hub.spokenEvents.collect { line ->
             if (line.kind in setOf("echo", "verdict", "refused") || line.agent != currentAgent || (line.device != null && line.device != "phone") || !model.readReplies) return@collect
@@ -169,9 +187,15 @@ private fun OriginalHome(model: ChumsViewModel, isPttKeyPressed: Boolean) {
                         detectTapGestures(onPress = {
                             val wasRecording = recording; val start = System.currentTimeMillis()
                             if (!wasRecording && !startRecording()) return@detectTapGestures
-                            val released = tryAwaitRelease()
-                            if (!released) stopRecording(cancel = true)
-                            else if (wasRecording || System.currentTimeMillis() - start >= 250) stopRecording()
+                            var handled = false
+                            try {
+                                val released = tryAwaitRelease()
+                                if (!released) stopRecording(cancel = true)
+                                else if (wasRecording || System.currentTimeMillis() - start >= 250) stopRecording()
+                                handled = true
+                            } finally {
+                                if (!handled) { model.audioRecorder.cancelRecording(); recording = false }
+                            }
                         })
                     }, contentAlignment = Alignment.Center) { Icon(if (recording) Icons.Default.ArrowUpward else Icons.Default.Mic, if (recording) "Send recording" else "Tap or hold to talk") }
                 }
@@ -200,11 +224,21 @@ private fun OriginalHome(model: ChumsViewModel, isPttKeyPressed: Boolean) {
                 item {
                     val large = front || lines.isEmpty()
                     Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = if (large) Arrangement.Center else Arrangement.Start) {
-                        OriginalCharacter(active.character, pose, Modifier.size(if (large) 260.dp else 100.dp).clickable { front = !front }, docked = !large)
+                        OriginalCharacter(active.character, pose, Modifier.size(if (large) 260.dp else 100.dp),
+                            caption = lastReply?.text.orEmpty(), tools = currentTools.map { it.text }.takeLast(6),
+                            subagents = state?.sessions?.find { it.name == active.id }?.subagents ?: 0,
+                            eventId = lastReply?.id.orEmpty(), kind = lastReply?.kind.orEmpty(),
+                            toolId = recentTools.lastOrNull()?.id.orEmpty(), toolFailed = recentTools.lastOrNull()?.ok == false)
                         if (!large) Column(Modifier.padding(start = 12.dp)) {
-                            Text(if (recording) "Listening" else if (speaking) "Speaking" else active.status.replaceFirstChar(Char::uppercase))
-                            state?.tools?.lastOrNull { it.session == active.id && it.type != "stop" }?.let { Text(it.text, fontSize = 12.sp, maxLines = 3) }
+                            Text(if (recording) "Listening" else if (speaking) "Speaking" else activity.title)
+                            activity.detail?.let { Text(it, fontSize = 12.sp, maxLines = 3) }
+                            TextButton(onClick = { front = true }) { Text("Expand") }
                         }
+                    }
+                    if (large) {
+                        Text(if (recording) "Listening" else if (speaking) "Speaking" else activity.title)
+                        activity.detail?.let { Text(it, fontSize = 12.sp) }
+                        if (front) TextButton(onClick = { front = false }) { Text("Back to conversation") }
                     }
                 }
                 notice?.let { item { Text(it, color = MaterialTheme.colorScheme.tertiary) } }

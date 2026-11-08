@@ -12,8 +12,8 @@ android {
         applicationId = "club.chums.ogandroid"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -60,7 +60,7 @@ android {
 // Package the upstream artwork directly; keep one canonical copy in the repository.
 val originalArtwork by tasks.registering(Copy::class) {
     into(layout.buildDirectory.dir("generated/originalArtwork"))
-    from(rootProject.file("../../docs/media/characters")) { into("previews") }
+    from(rootProject.file("../../design/pix/pix.js")) { into("renderer") }
     from(rootProject.file("../Shared/Characters.xcassets")) {
         include("avatar-*/avatar-*.png")
         eachFile { path = "avatars/$name" }
@@ -69,6 +69,21 @@ val originalArtwork by tasks.registering(Copy::class) {
 }
 android.sourceSets.getByName("main").assets.srcDir(originalArtwork)
 tasks.named("preBuild").configure { dependsOn(originalArtwork) }
+val liveCharacters by tasks.registering(Exec::class) {
+    val output = layout.buildDirectory.dir("generated/liveCharacters")
+    inputs.files(rootProject.file("../../tools/export-android-characters.py"), rootProject.file("../ChumsWatch/Rig/RayStage.swift"),
+        rootProject.file("../ChumsWatch/Rig/TangleStage.swift"), rootProject.file("../ChumsWatch/Rig/NoodleRest.swift"), rootProject.file("../ChumsWatch/noodle-shapes.bin"))
+    inputs.dir(rootProject.file("../ChumsWatch/Noodle"))
+    outputs.dir(output)
+    commandLine("python3", rootProject.file("../../tools/export-android-characters.py").absolutePath, output.get().asFile.absolutePath)
+}
+val rendererAssets by tasks.registering(Copy::class) {
+    dependsOn(liveCharacters)
+    from(layout.buildDirectory.dir("generated/liveCharacters")) { exclude("**/*.sha256") }
+    into(layout.buildDirectory.dir("generated/rendererAssets/renderer"))
+}
+android.sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/rendererAssets"))
+tasks.named("preBuild").configure { dependsOn(rendererAssets) }
 val originalIcon by tasks.registering(Copy::class) {
     from(rootProject.file("../ChumsPhone/Assets.xcassets/AppIcon.appiconset/icon-1024.png"))
     into(layout.buildDirectory.dir("generated/originalResources/drawable"))
@@ -84,6 +99,7 @@ dependencies {
     androidTestImplementation(composeBom)
 
     implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.webkit:webkit:1.10.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.activity:activity-compose:1.8.2")

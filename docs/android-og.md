@@ -35,21 +35,25 @@ Android experiment.
 | Agent card | Runtime/model/permission/voice pickers, editable soul fields and undo |
 | Read-aloud and connection settings | Implemented, including optional Android foreground connection/notifications |
 | All eight character identities and artwork | Original assets packaged directly from upstream, not redrawn replacements |
-| State-specific character rigs and interactions | **Not yet ported**; current stage uses upstream preview loops, with live status displayed separately |
-| Full animation fidelity, crown equivalents, pet/poke/physics reactions | Remaining port work; retain the original Swift rigs as the reference |
+| Live character states and interactions | Live local canvas for seven characters; Stretch uses 76 original state-specific clips. Touch reactions, drag gaze and two-finger rotation are implemented |
+| Source fidelity | Original Pix renderer, Ray outlines, Tangle face glyphs and Noodle shape journeys are reused. Other simulation and face logic is ported with reduced physics; exact Swift parity is not established |
 | Widgets, camera capture, ordered/reorderable drawer, full Markdown styling | Remaining Android parity work |
 | Full-screen visual/device comparison | Not yet performed |
 
-The character loops in `docs/media/characters` include the upstream watch frame.
-The large stage shows that original framed preview; the small dock crops its
-central stage. Android 9+ plays animated WebP; Android 8 uses the original avatar.
-These loops do not react to live tool/state events. They preserve the original
-artwork while the actual rigs are ported, and are not proof of animation parity.
-The UI remains functional while this rendering work is completed.
+Promotional watch-frame loops are no longer shipped or used. The local renderer
+receives the selected identity, live agent state, tool events and reply captions.
+It has no hub credentials, Android JavaScript bridge or remote resources.
+Stretch is decoded from the original HEIC sequences at build time, without the
+watch shell. All characters render on the same local WebView path, including
+Android 8 with an updated Android System WebView. Canvas checks verify rendering
+and state changes; they do not establish exact Swift physics or device parity.
 
 ## Build and install
 
-Use JDK 17 and Android SDK 34:
+Use JDK 17, Android SDK 34, Python 3 with Pillow, and `heif-convert` with
+sequence support (`-S`). Pillow is available as `python3-pil` on Ubuntu. Older Ubuntu libheif packages
+ lack sequence support; CI builds pinned libheif 1.23.2 from source.
+The build converts the original character assets automatically:
 
 ```sh
 git clone --branch ChumsOG-for-android https://github.com/mastergreene/chums.git
@@ -105,8 +109,10 @@ Build success and JVM unit tests do not establish these device or visual checks.
 
 ## Development validation
 
-Passed locally: debug and unsigned release APK builds, all eight JVM unit tests,
-Android lint with no issues, packaging checks for all sixteen original avatar/
-preview assets, and the original channel suite. No physical Android device is
-attached; the visual, microphone, notification and live-agent checklist above
-remains outstanding. The upstream hub and Apple client source trees are unchanged.
+Validation includes debug and unsigned release APK builds, eleven JVM unit
+tests, Android lint, and 112 real-canvas character/state cases. Run `npm ci` and
+`npm run test:characters` after the Gradle asset export to reproduce canvas
+checks and PNG snapshots. These checks run in CI before publishing the APK.
+No physical Android device is attached; microphone, notification, WebView and
+live-agent acceptance checks above remain outstanding. The upstream hub and
+Apple client source trees are unchanged.

@@ -245,5 +245,6 @@ Chums is not affiliated with or endorsed by Anthropic, OpenAI, GitHub or Apple.
 This branch ports the original Chums phone interface and all eight original
 characters to Android, using the original Mac hub and Claude Code/Codex setup.
 See [Android setup and the explicit parity checklist](docs/android-og.md).
-Character artwork currently uses the original preview loops; state-specific
-Swift rigs and interactions are still being ported.
+Characters now react to live state and touch, using original geometry, the Pix
+renderer and state-specific Stretch clips. Exact Swift simulation parity and
+physical Android acceptance testing remain unfinished.

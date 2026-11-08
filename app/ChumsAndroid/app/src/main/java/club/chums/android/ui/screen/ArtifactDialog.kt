@@ -77,7 +77,7 @@ fun ArtifactDialog(artifact: Artifact, hub: HubClient, onDismiss: () -> Unit) {
                 TextButton(onClick = onDismiss) { Text("Close") }
             }
             error?.let { Text(it, color = Color.White) }
-            if (type == "html" || type == "text") Text("Interactive preview. External resources are disabled.", color = Color.White)
+            if (type == "html" || type == "text") Text("Interactive preview", color = Color.White)
             if (type == "url") TextButton(onClick = {
                 try {
                     val uri = Uri.parse(artifact.view?.url)
@@ -86,7 +86,7 @@ fun ArtifactDialog(artifact: Artifact, hub: HubClient, onDismiss: () -> Unit) {
                 } catch (_: Exception) { error = "Couldn't open the page." }
             }) { Text("Open live page in browser") }
             when {
-                html != null -> ContainedPage(html!!, Modifier.weight(1f).fillMaxWidth())
+                html != null -> ContainedPage(html!!, android.net.Uri.parse(hub.getBaseUrl()).host, Modifier.weight(1f).fillMaxWidth())
                 picture != null -> ZoomPicture(picture!!, artifact.title, Modifier.weight(1f).fillMaxWidth())
                 file != null && type == "pdf" -> PdfPages(file!!, Modifier.weight(1f).fillMaxWidth())
                 file != null && type == "video" -> AndroidView(
@@ -129,25 +129,32 @@ private fun ZoomPicture(bitmap: Bitmap, title: String, modifier: Modifier) {
 
 @Suppress("SetJavaScriptEnabled")
 @Composable
-private fun ContainedPage(html: String, modifier: Modifier) {
+private fun ContainedPage(html: String, hubHost: String?, modifier: Modifier) {
     AndroidView(modifier = modifier, factory = { context ->
         WebView(context).apply {
             settings.javaScriptEnabled = true
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             settings.domStorageEnabled = false
-            settings.blockNetworkLoads = true
+            settings.blockNetworkLoads = false
             settings.setSupportZoom(true)
             settings.builtInZoomControls = true
             settings.displayZoomControls = false
             webViewClient = object : WebViewClient() {
-                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?) = true
-                override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?) =
-                    WebResourceResponse("text/plain", "UTF-8", ByteArrayInputStream(byteArrayOf()))
+                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean =
+                    request?.url?.toString() != "about:srcdoc" || request.isForMainFrame
+                override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
+                    val url = request?.url ?: return null
+                    if (url.scheme in setOf("https", "data", "about") && url.host != hubHost) return null
+                    return WebResourceResponse("text/plain", "UTF-8", ByteArrayInputStream(byteArrayOf()))
+                }
             }
-            // No hub origin, credentials, local-file access, external resources or navigation.
-            val policy = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; form-action 'none'; base-uri 'none'\">"
-            loadDataWithBaseURL("https://chums-artifact.invalid/", policy + html, "text/html", "UTF-8", null)
+            // HTTPS chart libraries may load inside an opaque sandbox. No hub origin,
+            // credentials, Android bridge, form submission, popups or top navigation.
+            val policy = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src https: data: blob:; script-src 'unsafe-inline' 'unsafe-eval' https:; style-src 'unsafe-inline' https:; form-action 'none'; base-uri 'none'; frame-src 'none'; object-src 'none'\">"
+            val escaped = (policy + html).replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;").replace(">", "&gt;")
+            val container = "<!doctype html><meta name='viewport' content='width=device-width,initial-scale=1'><style>html,body,iframe{margin:0;border:0;width:100%;height:100%;background:white}</style><iframe sandbox='allow-scripts' srcdoc=\"$escaped\"></iframe>"
+            loadDataWithBaseURL("https://chums-artifact.invalid/", container, "text/html", "UTF-8", null)
         }
     }, onRelease = { it.stopLoading(); it.destroy() })
 }

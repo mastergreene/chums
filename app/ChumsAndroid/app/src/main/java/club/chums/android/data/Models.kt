@@ -15,7 +15,11 @@ enum class ChumsState {
     BLOCKED,
     DIZZY,
     ERROR,
-    SLEEP
+    SLEEP,
+    COMPACTING,
+    LIMITED,
+    RECONNECTING,
+    UNKNOWN
 }
 
 @Serializable
@@ -57,8 +61,15 @@ data class Spoken(
     val audioData: String? = null,
     val device: String? = null,
     val at: Double? = null,
-    val agent: String? = null
+    val agent: String? = null,
+    val artifact: Artifact? = null
 )
+
+@Serializable
+data class Artifact(val id: String, val title: String = "Result", val kind: String = "image", val view: ArtifactView? = null)
+
+@Serializable
+data class ArtifactView(val type: String = "image", val url: String? = null, val name: String? = null)
 
 @Serializable
 data class AgentInfo(
@@ -78,6 +89,7 @@ data class AgentInfo(
 @Serializable
 data class HubState(
     val rev: Int,
+    val phoneRequestReceipts: Boolean = false,
     val sessions: List<SessionInfo> = emptyList(),
     val approvals: List<Approval> = emptyList(),
     val spoken: List<Spoken> = emptyList(),
@@ -105,5 +117,7 @@ data class RouteResult(
     val transcript: String? = null,
     val kind: String = "utterance",
     val echo: String? = null,
-    val target: String? = null
+    val target: String? = null,
+    val id: String? = null,
+    val confirmed: Boolean? = null
 )

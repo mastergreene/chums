@@ -16,6 +16,7 @@ import androidx.core.content.ContextCompat
 import club.chums.android.ui.screen.MainScreen
 
 class MainActivity : ComponentActivity() {
+    companion object { @Volatile var inForeground = false }
     private val model: ChumsViewModel by viewModels()
     private var isPttKeyPressed by mutableStateOf(false)
 
@@ -48,6 +49,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+        inForeground = false
         isPttKeyPressed = false                                    // a key held as the app leaves doesn't keep recording
+    }
+
+    override fun onResume() {
+        super.onResume()
+        inForeground = true
     }
 }

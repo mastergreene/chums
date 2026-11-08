@@ -26,6 +26,15 @@ class AudioRecorder(private val context: Context) {
     private var recordThread: Thread? = null
     private val pcmBuffer = ByteArrayOutputStream()
 
+    fun cancelRecording() {
+        isRecording = false
+        try { audioRecord?.stop() } catch (_: Exception) { }
+        recordThread?.join(1000)
+        audioRecord?.release()
+        audioRecord = null
+        recordThread = null
+    }
+
     @SuppressLint("MissingPermission")
     fun startRecording(): Boolean {
         if (isRecording) return true
@@ -48,6 +57,7 @@ class AudioRecorder(private val context: Context) {
 
             if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
                 Log.e(tag, "AudioRecord failed to initialize")
+                cancelRecording()
                 return false
             }
 
@@ -68,6 +78,7 @@ class AudioRecorder(private val context: Context) {
             return true
         } catch (e: Exception) {
             Log.e(tag, "Error starting recording", e)
+            cancelRecording()
             return false
         }
     }

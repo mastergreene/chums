@@ -5,6 +5,7 @@
   "type": "module",
   "description": "An Apple Watch and iPhone app for talking to the coding agents on your Mac (Claude Code and Codex), and its hub",
   "scripts": {
+    "test:phone": "node tools/test-phone.mjs",
     "hub": "node hub/hub.mjs",
     "test": "node tools/test-channel.mjs && CHUMS_TEST_NO_MODEL=1 node tools/test-hub.mjs && node tools/test-artifacts.mjs && node tools/test-runtimes.mjs"
   },

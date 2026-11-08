@@ -17,6 +17,7 @@ import crypto from 'node:crypto'
 import { spawn, execFile } from 'node:child_process'
 import { startRunners, startRunner, runByHub } from './runtimes.mjs'
 import { OWNER, Owner, PAGE_GUIDE } from './standing.mjs'
+import { RequestLedger } from './request-ledger.mjs'
 
 const CONFIG_DIR = path.join(os.homedir(), '.chums')
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json')
@@ -61,6 +62,7 @@ function loadConfig() {
   return cfg
 }
 const cfg = loadConfig()
+const requestLedger = new RequestLedger(path.join(CONFIG_DIR, 'phone-receipts.json'))
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a)
 
@@ -331,6 +333,7 @@ const deviceOf = d => typeof d === 'string' && /^[\w-]{1,24}$/.test(d) ? d : nul
 const statusOf = s => s.status === 'blocked' && s.blockedReplyAt && Date.now() - s.blockedReplyAt > 60_000 ? 'idle' : s.status
 function publicState() {
   return {
+    phoneRequestReceipts: true,
     rev,
     sessions: [...sessions.values()].map(s => ({
       id: s.id, name: s.name, lastLine: s.lastLine ?? null, subagents: s.subagents ?? 0, status: statusOf(s),
@@ -890,6 +893,7 @@ function route(text, shownApproval = null, agentId = null, device = null, files 
   if (filesOnly) text = files.length === 1 ? 'Look at the attached file.' : 'Look at the attached files.'
   if (!text) return { kind: 'empty', echo: "I didn't catch that." }
   const agent = agentId ? agentNamed(agentId) : null
+  if (agentId && !agent) return { kind: 'ask', echo: 'That agent no longer exists. Choose an agent before sending again.' }
   const tag = agent ? { agent: agent.id } : {}
 
   const pending = [...approvals.values()].filter(a => !agent || a.session === agent.id)
@@ -986,7 +990,7 @@ function askApproval(s, requestId, tool, description, inputPreview) {
 
 function verdict(requestId, behavior) {
   const a = approvals.get(requestId)
-  if (!a) return { kind: 'verdict', echo: 'That request is already closed.' }
+  if (!a) return { kind: 'verdict', confirmed: false, echo: 'That request is already closed.' }
   approvals.delete(requestId)
   const s = sessions.get(a.sessionId)
   if (s) {
@@ -997,7 +1001,7 @@ function verdict(requestId, behavior) {
   const echo = behavior === 'allow' ? `Allowed. ${who} continues.` : `Denied. ${who} was told no.`
   say(echo, 'Chums', 'verdict', agentNamed(a.session) ? { agent: a.session } : {})
   log('verdict', behavior, a.tool, 'for', a.session)
-  return { kind: 'verdict', echo }
+  return { kind: 'verdict', confirmed: !!s, echo }
 }
 
 // ---------- speech-to-text ----------
@@ -1271,22 +1275,29 @@ const handle = async (req, res) => {
     if (p === '/v1/utterance' && req.method === 'POST') {
       const t0 = Date.now()
       const buf = await readBody(req)
-      const text = await transcribe(buf)
-      const t1 = Date.now()
-      // shaping an agent's soul: what was said becomes a proposed change to see and save
-      if (req.headers['x-chums-soul']) return json(res, 200, { transcript: text, ...(await soulFromVoice(req.headers['x-chums-soul'], text)) })
-      // the approval card on the watch while it recorded, and the agent it was talking to when it started
-      const r = route(text, req.headers['x-chums-approval'] || null, req.headers['x-chums-agent'] || null, deviceOf(req.headers['x-chums-device']))
-      log(`utterance ${buf.length}B stt=${t1 - t0}ms:`, JSON.stringify(text), '->', r.kind)
-      return json(res, 200, { transcript: text, ...r, sttMs: t1 - t0 })
+      const result = await requestLedger.run(req.headers['x-chums-request-id'],
+        Buffer.concat([Buffer.from(JSON.stringify(['voice', req.headers['x-chums-agent'], req.headers['x-chums-approval'], req.headers['x-chums-device'], req.headers['x-chums-soul']])), buf]), async () => {
+        const text = await transcribe(buf)
+        const t1 = Date.now()
+        // shaping an agent's soul: what was said becomes a proposed change to see and save
+        if (req.headers['x-chums-soul']) return { transcript: text, ...(await soulFromVoice(req.headers['x-chums-soul'], text)) }
+        // the approval card on the watch while it recorded, and the agent it was talking to when it started
+        const r = route(text, req.headers['x-chums-approval'] || null, req.headers['x-chums-agent'] || null, deviceOf(req.headers['x-chums-device']))
+        log(`utterance ${buf.length}B stt=${t1 - t0}ms:`, JSON.stringify(text), '->', r.kind)
+        return { transcript: text, ...r, sttMs: t1 - t0 }
+      })
+      return json(res, 200, result)
     }
     if (p === '/v1/say' && req.method === 'POST') {
       const body = await readJSON(req)
-      const { approval, agent, soul, device, files } = body
-      const text = typeof body.text === 'string' ? body.text.slice(0, 4000) : body.text   // a message, not a document
-      if (soul) return json(res, 200, { transcript: text, ...(await soulFromVoice(soul, String(text ?? ''))) })
-      const paths = uploaded(files), shown = paths.map(artifactFor).filter(Boolean)
-      return json(res, 200, { transcript: text, ...route(String(text ?? ''), approval ?? null, agent ?? null, deviceOf(device), paths, shown) })
+      const result = await requestLedger.run(req.headers['x-chums-request-id'], JSON.stringify(['text', body]), async () => {
+        const { approval, agent, soul, device, files } = body
+        const text = typeof body.text === 'string' ? body.text.slice(0, 4000) : body.text   // a message, not a document
+        if (soul) return { transcript: text, ...(await soulFromVoice(soul, String(text ?? ''))) }
+        const paths = uploaded(files), shown = paths.map(artifactFor).filter(Boolean)
+        return { transcript: text, ...route(String(text ?? ''), approval ?? null, agent ?? null, deviceOf(device), paths, shown) }
+      })
+      return json(res, 200, result)
     }
     if (p === '/v1/focus' && req.method === 'POST') {                 // the agent the iPhone shows now
       const { agent } = await readJSON(req)

@@ -5,7 +5,9 @@ playful: a head that flips from one tilt to the other, a paw that waves, kneadin
 The side view in [SPEC.md](SPEC.md) and [../biscuit/SPEC.md](../biscuit/SPEC.md) is unchanged; the two views are
 separate rigs with separate timelines, and an app would use one of them.
 
-Neither view is in the watch app yet, and the files were not imported into Fable while writing this.
+Biscuit's front view is in the watch and iPhone apps: `app/ChumsWatch/Rig/BiscuitStage.swift` plays these keys from
+`BiscuitArt.swift`, which `build.py` writes. Fetch is not in the apps. The files were not imported into Fable while
+writing this.
 
 | File | What it is |
 | --- | --- |

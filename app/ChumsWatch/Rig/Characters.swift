@@ -5,7 +5,7 @@ enum Characters {
     static func draw(_ r: Rig, _ ctx: GraphicsContext, _ p: Pose) {
         switch r.character {
         case .peeps: drawEyes(r, ctx, p)
-        case .stretch, .crunch, .nana, .squint, .ray, .tangle, .noodle: break               // staged: they draw themselves (Renderer)
+        case .stretch, .crunch, .nana, .squint, .ray, .tangle, .noodle, .biscuit: break             // staged: they draw themselves (Renderer)
         }
     }
 

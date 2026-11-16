@@ -204,8 +204,8 @@ One screen, drawn every frame (SwiftUI `Canvas` in a `TimelineView`):
 
 - `Rig/RigCore.swift`, `Rig.swift`, `Worlds.swift`: the shared rig (springs, blinks, gaze, states, camera, physics,
   crown, shaking) and the character kinds.
-- `Rig/<Name>Stage.swift`: each character draws itself (Noodle, Stretch, Peeps, Squint, Ray, Tangle; Crunch and Nana
-  in `Pix.swift`).
+- `Rig/<Name>Stage.swift`: each character draws itself (Noodle, Stretch, Peeps, Squint, Ray, Tangle, Biscuit; Crunch and
+  Nana in `Pix.swift`).
 - `Controller.swift`: hub state to character state. `Screen.swift` (`ScreenModel`): gestures, motion, talking,
   approvals and replies, shared with the iPhone. `Voice.swift`: recording and speech. `ChumsWatchApp.swift`: the
   view, the crown, the overlays and Settings.

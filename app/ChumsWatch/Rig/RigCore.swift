@@ -54,8 +54,8 @@ enum ChumsState: String, CaseIterable {
 }
 
 enum CharacterKind: String, CaseIterable, Identifiable {
-    case peeps, stretch, crunch, nana, squint, ray, tangle, noodle
-    var name: String { ["peeps": "Peeps", "stretch": "Stretch", "crunch": "Crunch", "nana": "Nana", "squint": "Squint", "ray": "Ray", "tangle": "Tangle", "noodle": "Noodle"][rawValue]! }
+    case peeps, stretch, crunch, nana, squint, ray, tangle, noodle, biscuit
+    var name: String { ["peeps": "Peeps", "stretch": "Stretch", "crunch": "Crunch", "nana": "Nana", "squint": "Squint", "ray": "Ray", "tangle": "Tangle", "noodle": "Noodle", "biscuit": "Biscuit"][rawValue]! }
     var gridded: Bool { false }
     static let fallback = CharacterKind.noodle
     var id: String { rawValue }

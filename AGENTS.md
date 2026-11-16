@@ -50,7 +50,7 @@ Funnel. Some steps need the user's hands, accounts and devices; you do the rest 
 | 7. Connect the devices | Watch progress with `bin/chums-doctor` (section 7) | Plug the iPhone in by USB, tap Trust on the iPhone and the watch, keep the watch unlocked, open Window › Devices and Simulators and wait for "Preparing" to finish |
 | 8. Developer Mode | Check with `bin/chums-doctor` (section 7) | Turn it on in Settings › Privacy & Security on the iPhone and on the watch; each restarts and asks to confirm |
 | 9. Build and install | `bin/chums-install`, once the doctor shows the watch with Developer Mode on. It installs the watch app, then the iPhone app when Xcode knows the iPhone and its Developer Mode is on. Tell the user to keep the watch and the iPhone unlocked while it runs | Register the devices from Xcode if the build stops at "Your team has no devices" ([troubleshooting](docs/troubleshooting.md#your-team-has-no-devices)) |
-| 10. Start the agents | `bin/chums-agents install` once they agree (Chums.app is signed for the same team as the apps, so it keeps its permissions across rebuilds): eight Claude Code agents, one per character, about 200 MB of memory each. Skip it if they use only Codex. Change the agents' folders only if they ask (below) | Switch an agent to Codex: on the watch (swipe its row left, Runs on) or on its card in the iPhone app (Runs on). Answer Claude Code's first-start screens if they run `bin/chums-claude` themselves |
+| 10. Start the agents | `bin/chums-agents install` once they agree (Chums.app is signed for the same team as the apps, so it keeps its permissions across rebuilds): ten Claude Code agents, one per character, about 200 MB of memory each. Skip it if they use only Codex. Change the agents' folders only if they ask (below) | Switch an agent to Codex: on the watch (swipe its row left, Runs on) or on its card in the iPhone app (Runs on). Answer Claude Code's first-start screens if they run `bin/chums-claude` themselves |
 | 11. Talk to it | Read the hub log (the output of `bin/chums-hub`, or `~/.chums/hub.log` under launchd) to confirm the clip arrived (`utterance … -> order`) | Allow the microphone on the watch, hold the screen and speak |
 | Keyring mode (optional) | | Allow Health › Workouts on the watch; change the watch settings listed in setup.md |
 | Permissions on the Mac (once) | Check with `bin/chums-permissions check` (asks nothing); the hub and the agents must run through Chums.app first (`bin/chums-setup --launchd`, `bin/chums-agents install`, once they agree) | Open Chums from `~/Applications` (`bin/chums-permissions` opens it) and click Allow All: Allow or OK on each macOS dialog, and switch Chums on in the System Settings panes macOS's alerts open (Accessibility, Screen Recording) ([setup](docs/setup.md#permissions-on-the-mac)) |
@@ -86,7 +86,7 @@ python3 -c 'import json,os,sys; p=os.path.expanduser("~/.chums/config.json"); c=
 ## Writing ~/.chums/agents.json
 
 Every character is its own agent. The hub writes one per character on its first start (the id is the character's:
-`noodle`, `stretch`, `peeps`, `squint`, `ray`, `tangle`, `crunch`, `nana`), all on Claude Code. The user switches an
+`garfield`, `noodle`, `stretch`, `peeps`, `squint`, `ray`, `tangle`, `crunch`, `nana`, `biscuit`), all on Claude Code. The user switches an
 agent to Codex, and picks its model, on the watch (its soul screen, Runs on) or on its card in the iPhone app (Runs
 on, Model); don't do that by editing the file. To change their folders:
 

@@ -129,7 +129,7 @@ struct SoulView: View {
     }
 
     /// The characters, each its own agent, in the order the watch lists them first.
-    static let looks = ["noodle", "squint", "ray", "tangle", "peeps", "stretch", "crunch", "nana"]
+    static let looks = ["noodle", "squint", "ray", "tangle", "peeps", "stretch", "crunch", "nana", "biscuit"]
 
     /// A tile that opens a list: what it is, small, and its value under it.
     private func tile(_ title: String, _ value: String) -> some View {

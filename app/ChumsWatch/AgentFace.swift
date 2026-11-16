@@ -15,6 +15,6 @@ struct AgentFace: View {
         .overlay(Circle().strokeBorder(.white.opacity(0.16), lineWidth: max(0.5, size / 80)))
     }
     /// Avatars that are pictures to the edge (rendered), not pixel art in the middle of the circle.
-    static let fullBleed: Set<String> = ["stretch", "squint", "ray", "tangle", "noodle"]
+    static let fullBleed: Set<String> = ["stretch", "squint", "ray", "tangle", "noodle", "biscuit"]
     static func asset(_ c0: String) -> String { let c = CharacterKind.legacy[c0] ?? c0; return CharacterKind(rawValue: c) != nil ? c : CharacterKind.fallback.rawValue }
 }

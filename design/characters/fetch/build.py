@@ -305,6 +305,59 @@ def pivots_md(body):
     return "\n".join(rows)
 
 
+def swift_art(c, motion):
+    """The front view's numbers and keys as Swift, for app/ChumsWatch/Rig/BiscuitStage.swift."""
+    F = FRONT[c["id"]]
+    num = lambda v: f"{v:g}"
+    arr = lambda t: "[" + ", ".join(num(v) for v in t) + "]"
+    arr2 = lambda t: "[" + ", ".join(arr(o) for o in t) + "]"
+    case = lambda ch: ch.split(".")[0] + "".join(p.capitalize() for p in ch.split(".")[1:])
+    chans = list(motion["channels"])
+    rest = ["1" if ch.endswith((".sx", ".sy")) else "0" for ch in chans]
+    slim = lambda s: {"frames": s["frames"], "enter": s.get("enter", {"frames": 1, "ease": "lin"}), "tracks": s["tracks"]}
+    states = ",\n".join(f'"{sid}":' + json.dumps(slim(s), separators=(",", ":")) for sid, s in motion["states"].items())
+    poke = json.dumps(slim(motion["reactions"]["poke"]), separators=(",", ":"))
+    L = F["legs"]
+    return f'''// Written by design/characters/fetch/build.py from its FRONT numbers and motion-front.json. Change those, not this file.
+
+/// {c["name"]} facing the screen: its shapes and the keys of its 12 states (design/characters/fetch/SPEC-front.md).
+/// Lengths are points on the 396 × 484 design canvas, twice the rig's 198 × 242. Circles are [x, y, r].
+enum BiscuitArt {{
+    static let near: UInt32 = 0x{c["near"][1:]}, far: UInt32 = 0x{c["far"][1:]}
+    static let ground = {num(GROUND)}.0, centre = {num(F["root"][0])}.0
+    static let haunch: [[Double]] = {arr2(F["haunch"])}
+    static let chest: [[Double]] = {arr2(F["chest"])}
+    static let neck: [[Double]] = {arr2(F["neck"])}
+    static let head: [[Double]] = {arr2(F["head"])}
+    /// The screen-left ear, base then tip; the right one is its mirror image about `centre`.
+    static let ear: [[Double]] = {arr2(F["ear"])}
+    static let chin: [Double] = {arr(F["chin"])}
+    /// The eyes: how far each is from `centre`, their y, their radius.
+    static let eye: [Double] = {arr(F["eye"])}
+    static let nose: [Double] = {arr(F["nose"])}
+    static let legWidth = {num(L["w"])}.0, legGap = {num(L["gap"])}.0, legTop = {num(L["top"])}.0, legRadius = {num(L["r"])}.0, shoulderY = {num(F["shoulder_y"])}.0
+    /// The tail's centre line (a quadratic curve), and its width at the base and at the tip.
+    static let tail: [[Double]] = {arr2([F["tail"]["p0"], F["tail"]["p1"], F["tail"]["p2"]])}
+    static let tailWidth: [Double] = {arr([F["tail"]["w0"], F["tail"]["w1"]])}
+    static let flock: [[Double]] = {arr2(F["flock"])}
+
+    /// What the keys move, in the order of `names` and `rest`.
+    enum Ch: Int, CaseIterable {{ case {", ".join(case(ch) for ch in chans)} }}
+    static let names: [String] = [{", ".join(json.dumps(ch) for ch in chans)}]
+    static let rest: [Double] = [{", ".join(rest)}]
+
+    /// The keys, as JSON: for each state its length in frames (24 a second), how it's entered, and per channel
+    /// [frame, value, ease] (no ease: "inout").
+    static let motion = #"""
+{{"states":{{
+{states}
+}},
+"poke":{poke}}}
+"""#
+}}
+'''
+
+
 if __name__ == "__main__":
     side = json.load(open(os.path.join(HERE, "motion.json")))
     front = json.load(open(os.path.join(HERE, "motion-front.json")))
@@ -333,6 +386,7 @@ if __name__ == "__main__":
     front_spec = fill(front_spec, "states", states_md(front))
     front_spec = fill(front_spec, "poke", poke_md(front))
     open(front_path, "w").write(front_spec)
+    open(os.path.join(HERE, "..", "..", "..", "app", "ChumsWatch", "Rig", "BiscuitArt.swift"), "w").write(swift_art(BISCUIT, front))
     page = open(os.path.join(HERE, "player.part.html")).read()
     page = page.replace("/*RIGS*/", json.dumps(rigs)).replace("/*MOTION*/", json.dumps({"front": front, "side": side}, separators=(",", ":")))
     open(os.path.join(HERE, "preview.html"), "w").write(page)

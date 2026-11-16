@@ -295,9 +295,9 @@ the watch shows a character, not "HUB OFFLINE" (it says "NOT RUNNING" until its 
 
 ## 10. Start the agents
 
-Every character on the watch is its own agent. On its first start (step 4) the hub wrote eight to
-`~/.chums/agents.json`, one per character: `noodle`, `stretch`, `peeps`, `squint`, `ray`, `tangle`, `crunch` and
-`nana`. All start on Claude Code, each working in `~/.chums/agents/<id>` with access to your home folder. To give one
+Every character on the watch is its own agent. On its first start (step 4) the hub wrote ten to
+`~/.chums/agents.json`, one per character: `garfield`, `noodle`, `stretch`, `peeps`, `squint`, `ray`, `tangle`,
+`crunch`, `nana` and `biscuit`. All start on Claude Code, each working in `~/.chums/agents/<id>` with access to your home folder. To give one
 other folders, edit its `cwd` and `addDirs` ([Background agents](#background-agents)).
 
 **Claude Code agents** run in the background, one LaunchAgent each. They run through a small Mac app, Chums.app,

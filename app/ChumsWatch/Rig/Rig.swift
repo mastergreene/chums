@@ -24,6 +24,7 @@ final class Rig {
         case .ray: RayStage.shared
         case .tangle: TangleStage.shared
         case .noodle: NoodleStage.shared
+        case .biscuit: BiscuitStage.shared
         default: nil
         }
     }

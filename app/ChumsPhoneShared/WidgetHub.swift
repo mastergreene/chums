@@ -58,7 +58,7 @@ struct WState: Codable {
 
 enum WidgetHub {
     /// The characters in the app's order (SoulView.looks, which the widgets can't see).
-    static let order = ["noodle", "squint", "ray", "tangle", "peeps", "stretch", "crunch", "nana"]
+    static let order = ["noodle", "squint", "ray", "tangle", "peeps", "stretch", "crunch", "nana", "biscuit"]
 
     /// What a widget shows before the hub has answered once (the gallery, a placeholder).
     static let sample = WState(rev: 0, agents: [

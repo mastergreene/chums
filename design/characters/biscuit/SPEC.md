@@ -4,7 +4,7 @@ A second character for Chums on Fetch's rig: a sitting orange cat in profile. It
 channels and the same 12 timelines as the dog, so [fetch/SPEC.md](../fetch/SPEC.md) is its motion specification and
 [fetch/motion.json](../fetch/motion.json) its keys. This file lists only what differs.
 
-Biscuit is a design. It is not in the watch app yet.
+The apps draw Biscuit facing the screen ([../fetch/SPEC-front.md](../fetch/SPEC-front.md)), not this side view.
 
 | File | What it is |
 | --- | --- |

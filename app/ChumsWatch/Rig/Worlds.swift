@@ -250,7 +250,7 @@ final class Worlds {
         let c = r.cute
         switch r.character {
         case .peeps: let s = 0.8; return ((lerp(25, 26, c) + lerp(11, 13, c)) * s, lerp(17, 19, c) * s, lerp(17, 19, c) * s)
-        case .stretch, .crunch, .nana, .squint, .ray, .tangle, .noodle: return (50, 60, 60)
+        case .stretch, .crunch, .nana, .squint, .ray, .tangle, .noodle, .biscuit: return (50, 60, 60)
         }
     }
 

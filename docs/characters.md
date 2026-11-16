@@ -14,6 +14,7 @@ approval, blocked, dizzy and sleep, plus reactions to a tool call and to your to
 | Tangle | A ball of yarn drawn as one pale-blue marker line, with a face | `Rig/TangleStage.swift`, `Rig/Yarn.swift` |
 | Crunch | A deadpan pixel apple whose moods are render settings: low resolution while thinking, HD when done, a frozen window when stuck, a bouncing screensaver asleep | `Rig/Pix.swift` (port of `design/pix/pix.js`) |
 | Nana | The same as Crunch, as a pixel banana | `Rig/Pix.swift` |
+| Biscuit | A flat orange cat sitting and looking at you, in two oranges on black. Circles, hulls of two circles and rounded rectangles, moved by keys at 24 frames a second: it kneads while it works and waves when it needs you | `Rig/BiscuitStage.swift`, `Rig/BiscuitArt.swift` (written by `design/characters/fetch/build.py`) |
 
 Paths are under `app/ChumsWatch/` unless they start with `design/`.
 
@@ -22,10 +23,10 @@ Paths are under `app/ChumsWatch/` unless they start with `design/`.
 | Do this | It does |
 | --- | --- |
 | Hold the screen | Talk. Let go to send; slide onto × to cancel |
-| Tap the character | Poke it. Four in 3 s: Peeps, Squint, Ray and Tangle get annoyed, Noodle gets dizzy |
+| Tap the character | Poke it. Four in 3 s: Peeps, Squint, Ray and Tangle get annoyed, Noodle and Biscuit get dizzy |
 | Stroke across it | Pet it |
 | Hold the approval card | Allow the command (1 s); tap × to deny |
-| Turn the Digital Crown | Each character reacts its own way: Stretch stretches, Nana ripens, Squint picks a face (and keeps it), Tangle unspools or winds itself, Peeps get bubbles (up) or a wind (down); Noodle and Ray, spun fast, get dizzy |
+| Turn the Digital Crown | Each character reacts its own way: Stretch stretches, Nana ripens, Squint picks a face (and keeps it), Tangle unspools or winds itself, Peeps get bubbles (up) or a wind (down), Biscuit stretches tall (up) or crouches and wiggles (down); Noodle, Ray and Biscuit, spun fast, get dizzy |
 | Tilt or shake the watch | Peeps and Tangle follow a tilt; a hard shake makes any character dizzy |
 | Tap the faces at the top left | The agents list (press and hold a row, then drag it, to change the order), with Settings below |
 
@@ -50,6 +51,20 @@ to change Stretch.
 `app/ChumsWatch/Rig/Pix.swift` must render the same frames as `design/pix/pix.js`. `tools/pix-compare.sh` renders the
 104 reference frames on the Mac and compares them with `design/pix/reference`, pixel for pixel.
 `open design/pix/sheet.html` shows a contact sheet of the JavaScript version.
+
+## Biscuit: changing its shapes or its motion
+
+Biscuit's shapes are the `FRONT["biscuit"]` numbers in `design/characters/fetch/build.py` and its keys are
+`design/characters/fetch/motion-front.json` ([SPEC-front.md](../design/characters/fetch/SPEC-front.md) explains both).
+After changing either:
+
+```bash
+python3 design/characters/fetch/build.py     # writes app/ChumsWatch/Rig/BiscuitArt.swift, the SVGs and the preview
+open design/characters/fetch/preview.html    # every state, in a browser
+```
+
+`Rig/BiscuitStage.swift` reads `BiscuitArt.swift`; it has no numbers of its own except where the cat sits on the
+screen.
 
 ## Recording
 

@@ -11,6 +11,7 @@ Biscuit is a design. It is not in the watch app yet.
 | [biscuit.svg](biscuit.svg) | The resting pose, one group per rig layer |
 | [../fetch/preview.html](../fetch/preview.html) | Plays every state for both characters. Choose Biscuit at the top |
 | [../fetch/build.py](../fetch/build.py) | Writes `biscuit.svg` from the `BISCUIT` numbers at its top |
+| [../fetch/SPEC-front.md](../fetch/SPEC-front.md) | Biscuit facing the screen ([biscuit-front.svg](biscuit-front.svg)), with playful timelines |
 
 ## Anatomy
 

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 396 484" width="396" height="484">
+<title>Fetch, facing the screen, resting pose</title>
+<rect id="background" width="396" height="484" fill="#000000"/>
+<g id="fetch" data-pivot="190 418">
+  <g id="flock" opacity="0"><circle id="flock-1" cx="34" cy="404" r="7.5" fill="#A89B89"/><circle id="flock-2" cx="56" cy="404" r="7.5" fill="#A89B89"/><circle id="flock-3" cx="78" cy="404" r="7.5" fill="#A89B89"/></g>
+  <g id="tail" data-pivot="248 398"><path d="M247.5 409 Q342 413.4 328.4 309.2 A6.5 6.5 0 0 0 315.6 310.8 Q326 390.6 248.5 387 A11 11 0 0 0 247.5 409 Z" fill="#A89B89"/></g>
+  <g id="torso">
+    <path id="haunch" d="M148 418 L232 418 A52 52 0 0 0 232 314 L148 314 A52 52 0 1 0 148 418 Z" fill="#A89B89"/>
+    <path id="chest" d="M148 286 L148 330 A42 42 0 0 0 232 330 L232 286 A42 42 0 1 0 148 286 Z" fill="#F2EEE6"/>
+    <path id="neck" d="M225.6 244.7 L217.7 191.9 A28 28 0 0 0 162.3 191.9 L154.4 244.7 A36 36 0 1 0 225.6 244.7 Z" fill="#F2EEE6"/>
+    <rect id="collar" x="140" y="223.5" width="100" height="9" fill="#000000"/>
+  </g>
+  <g id="paw-left" data-pivot="169 312"><rect x="150" y="300" width="38" height="118" rx="18" fill="#F2EEE6"/></g>
+  <g id="paw-right" data-pivot="211 312"><rect x="192" y="300" width="38" height="118" rx="18" fill="#F2EEE6"/></g>
+  <g id="head" data-pivot="190 214">
+    <g id="ear-left" data-pivot="158 118"><path d="M173 108.1 L146.2 67.3 A5 5 0 0 0 137 70.3 L140 119.1 A18 18 0 1 0 173 108.1 Z" fill="#F2EEE6"/></g>
+    <g id="ear-right" data-pivot="222 118"><path d="M240 119.1 L243 70.3 A5 5 0 0 0 233.8 67.3 L207 108.1 A18 18 0 1 0 240 119.1 Z" fill="#F2EEE6"/></g>
+    <path id="head-shape" d="M148.3 167.4 L162.8 198.6 A30 30 0 0 0 217.2 198.6 L231.7 167.4 A46 46 0 1 0 148.3 167.4 Z" fill="#F2EEE6"/>
+    <g id="accent">
+      <circle id="nose" cx="190" cy="198" r="9" fill="#000000"/>
+      <g id="eye-left" data-pivot="169 148"><circle cx="169" cy="148" r="6" fill="#000000"/></g>
+      <g id="eye-right" data-pivot="211 148"><circle cx="211" cy="148" r="6" fill="#000000"/></g>
+    </g>
+  </g>
+</g>
+</svg>

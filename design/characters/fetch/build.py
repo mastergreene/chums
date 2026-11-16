@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Builds the resting poses (fetch.svg, ../biscuit/biscuit.svg), the motion preview (preview.html) and the generated
-parts of the two SPEC.md files from the numbers below and motion.json.
+"""Builds the resting poses (side and front, for Fetch and Biscuit), the motion preview (preview.html) and the
+generated parts of the specification files from the numbers below, motion.json and motion-front.json.
 
     python3 design/characters/fetch/build.py
 
@@ -202,24 +202,138 @@ def fill(text, tag, body):
     return text[:i] + "\n" + body + "\n" + text[j:]
 
 
+# ---- the front view: the same animals facing the screen ---------------------------------------------------------
+# "L" and "R" are screen left and screen right. The far colour is what sits behind: the haunches and the tail.
+FRONT = {
+    "fetch": dict(
+        haunch=((148, 366, 52), (232, 366, 52)),          # far colour, behind the chest
+        chest=((190, 286, 42), (190, 330, 42)),
+        neck=((190, 250, 36), (190, 196, 28)), collar=228,
+        legs=dict(w=38, gap=4, top=300, r=18), shoulder_y=312,
+        head=((190, 148, 46), (190, 186, 30)), chin=(190, 214),
+        ear=((158, 118, 18), (142, 70, 5)),               # screen-left ear: base (the pivot), tip; the right one mirrors it
+        eye=(21, 148, 6), nose=(190, 198, 9),             # eye: distance from the centre line, y, r
+        tail=dict(p0=(248, 398), p1=(334, 402), p2=(322, 310), w0=22, w1=13),
+        root=(190, GROUND), flock=[(34, 404), (56, 404), (78, 404)],
+    ),
+    "biscuit": dict(
+        haunch=((140, 362, 56), (236, 362, 56)),
+        chest=((188, 290, 48), (188, 334, 46)),
+        neck=((188, 262, 40), (188, 226, 36)), collar=None,
+        legs=dict(w=42, gap=4, top=304, r=20), shoulder_y=316,
+        head=((160, 184, 52), (216, 184, 52)), chin=(188, 236),
+        ear=((136, 148, 20), (116, 92, 4)),
+        eye=(28, 184, 7), nose=(188, 203, 5),
+        tail=dict(p0=(254, 398), p1=(346, 404), p2=(326, 296), w0=20, w1=16),
+        root=(188, GROUND), flock=[(22, 404), (44, 404), (66, 404)],
+    ),
+}
+
+
+def svg_front(c, standalone=True):
+    F, near, far = FRONT[c["id"]], c["near"], c["far"]
+    cx = F["root"][0]
+    mirror = lambda o: (2 * cx - o[0],) + tuple(o[1:])
+    L = F["legs"]
+    lx, rx = cx - L["gap"] / 2 - L["w"], cx + L["gap"] / 2
+    sh_l, sh_r = (lx + L["w"] / 2, F["shoulder_y"]), (rx + L["w"] / 2, F["shoulder_y"])
+    earl, earr = F["ear"], tuple(mirror(o) for o in F["ear"])
+    ex, ey, er = F["eye"]
+    pv = lambda p: f'data-pivot="{f(p[0])} {f(p[1])}"'
+    legrect = lambda x: (f'<rect x="{f(x)}" y="{f(L["top"])}" width="{f(L["w"])}" height="{f(GROUND - L["top"])}" '
+                         f'rx="{f(L["r"])}" fill="{near}"/>')
+    flock = "".join(f'<circle id="flock-{i + 1}" cx="{x}" cy="{y}" r="7.5" fill="{far}"/>'
+                    for i, (x, y) in enumerate(F["flock"]))
+    collar = (f'\n    <rect id="collar" x="{f(cx - 50)}" y="{f(F["collar"] - 4.5)}" width="100" height="9" fill="{BLACK}"/>'
+              if F["collar"] else "")
+    body = f'''<g id="{c["id"]}" {pv(F["root"])}>
+  <g id="flock" opacity="0">{flock}</g>
+  <g id="tail" {pv(F["tail"]["p0"])}><path d="{tail_path(F["tail"])}" fill="{far}"/></g>
+  <g id="torso">
+    <path id="haunch" d="{hull(*F["haunch"])}" fill="{far}"/>
+    <path id="chest" d="{hull(*F["chest"])}" fill="{near}"/>
+    <path id="neck" d="{hull(*F["neck"])}" fill="{near}"/>{collar}
+  </g>
+  <g id="paw-left" {pv(sh_l)}>{legrect(lx)}</g>
+  <g id="paw-right" {pv(sh_r)}>{legrect(rx)}</g>
+  <g id="head" {pv(F["chin"])}>
+    <g id="ear-left" {pv(earl[0])}><path d="{hull(*earl)}" fill="{near}"/></g>
+    <g id="ear-right" {pv(earr[0])}><path d="{hull(*earr)}" fill="{near}"/></g>
+    <path id="head-shape" d="{hull(*F["head"])}" fill="{near}"/>
+    <g id="accent">
+      <circle id="nose" cx="{f(F["nose"][0])}" cy="{f(F["nose"][1])}" r="{f(F["nose"][2])}" fill="{BLACK}"/>
+      <g id="eye-left" {pv((cx - ex, ey))}><circle cx="{f(cx - ex)}" cy="{f(ey)}" r="{f(er)}" fill="{BLACK}"/></g>
+      <g id="eye-right" {pv((cx + ex, ey))}><circle cx="{f(cx + ex)}" cy="{f(ey)}" r="{f(er)}" fill="{BLACK}"/></g>
+    </g>
+  </g>
+</g>'''
+    if not standalone:
+        return body
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">\n'
+            f'<title>{c["name"]}, facing the screen, resting pose</title>\n'
+            f'<rect id="background" width="{W}" height="{H}" fill="{BLACK}"/>\n{body}\n</svg>\n')
+
+
+def front_anatomy_md(c):
+    F = FRONT[c["id"]]
+    cx = F["root"][0]
+    L = F["legs"]
+    two = lambda t: f"({f(t[0][0])}, {f(t[0][1])}, {f(t[0][2])}) and ({f(t[1][0])}, {f(t[1][1])}, {f(t[1][2])})"
+    rows = [
+        ("Haunches", f"Hull of {two(F['haunch'])}", c["far_name"]),
+        ("Tail", f"A band {F['tail']['w0']} pt wide at the base and {F['tail']['w1']} at the tip around the quadratic curve "
+                 f"{F['tail']['p0']} {F['tail']['p1']} {F['tail']['p2']}, behind the haunches", c["far_name"]),
+        ("Chest", f"Hull of {two(F['chest'])}", c["near_name"]),
+        ("Neck", f"Hull of {two(F['neck'])}", c["near_name"]),
+        ("Front legs", f"Two rounded rectangles {L['w']} wide from y = {L['top']} to the ground, radius {L['r']}, "
+                       f"{L['gap']} pt apart about x = {cx}", c["near_name"]),
+        ("Head", f"Hull of {two(F['head'])}", c["near_name"]),
+        ("Ears", f"Hull of the base and the tip, {two(F['ear'])}, and its mirror image about x = {cx}", c["near_name"]),
+        ("Eyes", f"Two circles of radius {f(F['eye'][2])}, {F['eye'][0]} pt either side of x = {cx} at y = {F['eye'][1]}", "Black"),
+        ("Nose", f"Circle ({F['nose'][0]}, {F['nose'][1]}, {f(F['nose'][2])})", "Black"),
+    ]
+    if F["collar"]:
+        rows.insert(4, ("Collar", f"A black band 9 pt wide across the neck at y = {F['collar']}", "Black"))
+    return "\n".join(["| Part | Construction | Fill |", "| --- | --- | --- |"] + [f"| {a} | {b} | {d} |" for a, b, d in rows])
+
+
+def pivots_md(body):
+    import re
+    rows = ["| Group id | Pivot |", "| --- | --- |"]
+    for gid, x, y in re.findall(r'<g id="([\w-]+)" data-pivot="([\d.]+) ([\d.]+)"', body):
+        rows.append(f"| `{gid}` | {x}, {y} |")
+    return "\n".join(rows)
+
+
 if __name__ == "__main__":
-    motion = json.load(open(os.path.join(HERE, "motion.json")))
-    rigs = {}
+    side = json.load(open(os.path.join(HERE, "motion.json")))
+    front = json.load(open(os.path.join(HERE, "motion-front.json")))
+    rigs = {"front": {}, "side": {}}
+    front_path = os.path.join(HERE, "SPEC-front.md")
+    front_spec = open(front_path).read()
     for c in CHARACTERS:
         folder = os.path.join(HERE, "..", c["id"])
         os.makedirs(folder, exist_ok=True)
         open(os.path.join(folder, c["id"] + ".svg"), "w").write(svg(c))
-        rigs[c["id"]] = dict(name=c["name"], svg=svg(c, False), gain=c["gain"],
-                             colors=[[c["near_name"], c["near"]], [c["far_name"], c["far"]], ["Black", BLACK]])
+        open(os.path.join(folder, c["id"] + "-front.svg"), "w").write(svg_front(c))
+        colors = [[c["near_name"], c["near"]], [c["far_name"], c["far"]], ["Black", BLACK]]
+        rigs["side"][c["id"]] = dict(name=c["name"], svg=svg(c, False), gain=c["gain"], colors=colors)
+        rigs["front"][c["id"]] = dict(name=c["name"], svg=svg_front(c, False), gain={}, colors=colors)
         spec_path = os.path.join(folder, "SPEC.md")
         spec = open(spec_path).read()
         spec = fill(spec, "svg", "```svg\n" + svg(c) + "```")
         if c is FETCH:
-            spec = fill(spec, "channels", channels_md(motion))
-            spec = fill(spec, "states", states_md(motion))
-            spec = fill(spec, "poke", poke_md(motion))
+            spec = fill(spec, "channels", channels_md(side))
+            spec = fill(spec, "states", states_md(side))
+            spec = fill(spec, "poke", poke_md(side))
         open(spec_path, "w").write(spec)
+        front_spec = fill(front_spec, "anatomy-" + c["id"], front_anatomy_md(c) + "\n\n" + pivots_md(svg_front(c, False)))
+        front_spec = fill(front_spec, "svg-" + c["id"], "```svg\n" + svg_front(c) + "```")
+    front_spec = fill(front_spec, "channels", channels_md(front))
+    front_spec = fill(front_spec, "states", states_md(front))
+    front_spec = fill(front_spec, "poke", poke_md(front))
+    open(front_path, "w").write(front_spec)
     page = open(os.path.join(HERE, "player.part.html")).read()
-    page = page.replace("/*RIGS*/", json.dumps(rigs)).replace("/*MOTION*/", json.dumps(motion, separators=(",", ":")))
+    page = page.replace("/*RIGS*/", json.dumps(rigs)).replace("/*MOTION*/", json.dumps({"front": front, "side": side}, separators=(",", ":")))
     open(os.path.join(HERE, "preview.html"), "w").write(page)
-    print("wrote the two SVGs, preview.html and the generated parts of the two SPEC.md files")
+    print("wrote the four SVGs, preview.html and the generated parts of the three specification files")

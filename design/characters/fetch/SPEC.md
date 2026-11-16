@@ -12,6 +12,7 @@ Fetch is a design. It is not in the watch app yet; "Building it in Chums" at the
 | [preview.html](preview.html) | Plays every state and the touch and crown reactions, for Fetch and Biscuit. Open it in a browser |
 | [build.py](build.py) | Writes both SVGs, `preview.html` and the generated parts of the two `SPEC.md` files from the numbers at its top and `motion.json` |
 | [../biscuit/SPEC.md](../biscuit/SPEC.md) | Biscuit, an orange cat on the same rig and timelines |
+| [SPEC-front.md](SPEC-front.md) | Both characters facing the screen, with their own playful timelines |
 
 ## 1. Anatomy and proportions
 

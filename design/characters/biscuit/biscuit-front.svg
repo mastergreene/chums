@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 396 484" width="396" height="484">
+<title>Biscuit, facing the screen, resting pose</title>
+<rect id="background" width="396" height="484" fill="#000000"/>
+<g id="biscuit" data-pivot="188 418">
+  <g id="flock" opacity="0"><circle id="flock-1" cx="22" cy="404" r="7.5" fill="#B45F1B"/><circle id="flock-2" cx="44" cy="404" r="7.5" fill="#B45F1B"/><circle id="flock-3" cx="66" cy="404" r="7.5" fill="#B45F1B"/></g>
+  <g id="tail" data-pivot="254 398"><path d="M253.3 408 Q356.1 414.7 333.9 294.5 A8 8 0 0 0 318.1 297.5 Q335.9 393.3 254.7 388 A10 10 0 0 0 253.3 408 Z" fill="#B45F1B"/></g>
+  <g id="torso">
+    <path id="haunch" d="M140 418 L236 418 A56 56 0 0 0 236 306 L140 306 A56 56 0 1 0 140 418 Z" fill="#B45F1B"/>
+    <path id="chest" d="M140 292.2 L142 336.1 A46 46 0 0 0 234 336.1 L236 292.2 A48 48 0 1 0 140 292.2 Z" fill="#F28A2E"/>
+    <path id="neck" d="M227.8 257.6 L223.8 222 A36 36 0 0 0 152.2 222 L148.2 257.6 A40 40 0 1 0 227.8 257.6 Z" fill="#F28A2E"/>
+  </g>
+  <g id="paw-left" data-pivot="165 316"><rect x="144" y="304" width="42" height="114" rx="20" fill="#F28A2E"/></g>
+  <g id="paw-right" data-pivot="211 316"><rect x="190" y="304" width="42" height="114" rx="20" fill="#F28A2E"/></g>
+  <g id="head" data-pivot="188 236">
+    <g id="ear-left" data-pivot="136 148"><path d="M152.3 136.5 L119.3 89.7 A4 4 0 0 0 112 92.3 L116 149.4 A20 20 0 1 0 152.3 136.5 Z" fill="#F28A2E"/></g>
+    <g id="ear-right" data-pivot="240 148"><path d="M260 149.4 L264 92.3 A4 4 0 0 0 256.7 89.7 L223.7 136.5 A20 20 0 1 0 260 149.4 Z" fill="#F28A2E"/></g>
+    <path id="head-shape" d="M160 236 L216 236 A52 52 0 0 0 216 132 L160 132 A52 52 0 1 0 160 236 Z" fill="#F28A2E"/>
+    <g id="accent">
+      <circle id="nose" cx="188" cy="203" r="5" fill="#000000"/>
+      <g id="eye-left" data-pivot="160 184"><circle cx="160" cy="184" r="7" fill="#000000"/></g>
+      <g id="eye-right" data-pivot="216 184"><circle cx="216" cy="184" r="7" fill="#000000"/></g>
+    </g>
+  </g>
+</g>
+</svg>

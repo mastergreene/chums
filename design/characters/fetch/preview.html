@@ -1,0 +1,296 @@
+<title>Fetch and Biscuit</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: the watch screen stays on the left; the state picker and that state's dope sheet run down the right. */
+/* One dark look on purpose: the character only exists on an OLED-black screen. */
+:root {
+  color-scheme: dark;
+  --page: #0d0c0b; --panel: #171513; --line: #2c2824; --screen: #000000;
+  --chalk: #F2EEE6; --stone: #A89B89; --mute: #81786c;
+  --display: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --text: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+html { background: var(--page); }
+body { background: var(--page); color: var(--chalk); font: 400 15px/1.55 var(--text); }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; margin-bottom: 24px; }
+h1 { font: 700 40px/1 var(--display); letter-spacing: -0.02em; margin: 0; }
+header p { margin: 0; color: var(--stone); flex: 1; min-width: 240px; }
+.who { display: flex; gap: 8px; }
+h2 { font: 500 12px/1.2 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); margin: 0; }
+.cols { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 36px; align-items: start; }
+.left { display: flex; flex-direction: column; gap: 14px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); }
+.right { display: flex; flex-direction: column; gap: 30px; min-width: 0; }
+section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+#stage { display: block; width: 100%; height: auto; aspect-ratio: 396 / 484; background: var(--screen); border-radius: 17%/14%;
+  outline: 1px solid var(--line); touch-action: pan-y; cursor: pointer; user-select: none; -webkit-user-select: none; }
+.readout { display: flex; justify-content: space-between; gap: 12px; font: 400 12px/1.4 var(--mono); color: var(--stone);
+  font-variant-numeric: tabular-nums; }
+.transport { display: flex; align-items: center; gap: 12px; }
+.transport input { flex: 1; min-width: 0; }
+input[type=range] { accent-color: var(--chalk); }
+button { font: 500 14px/1 var(--text); color: var(--chalk); background: transparent; border: 1px solid var(--line);
+  border-radius: 999px; padding: 10px 14px; cursor: pointer; }
+button:hover { border-color: var(--stone); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--chalk); outline-offset: 2px; }
+button[aria-pressed=true] { background: var(--chalk); border-color: var(--chalk); color: #000; }
+.states { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.states button { text-align: left; }
+.wrist { display: flex; align-items: flex-end; gap: 18px; padding-top: 6px; border-top: 1px solid var(--line); }
+.wrist figure { margin: 0; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.wrist svg { background: var(--screen); border-radius: 17%/14%; display: block; }
+.wrist figcaption, .note { font-size: 12px; color: var(--mute); }
+.wrist p { margin: 0; flex: 1; min-width: 0; }
+#intent { font: 500 20px/1.3 var(--display); margin: 0; text-wrap: balance; max-width: 34em; }
+#beats { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; max-width: 62ch; }
+#beats li { display: grid; grid-template-columns: 9.5em minmax(0, 1fr); gap: 12px; color: var(--stone); }
+#beats b { font: 400 12px/1.9 var(--mono); color: var(--chalk); font-variant-numeric: tabular-nums; }
+.sheetbox { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+#sheet { min-width: 520px; padding: 12px 14px 14px; position: relative; font: 400 11px/1 var(--mono); }
+.row { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: center; height: 22px; }
+.row span { color: var(--stone); }
+.lane { position: relative; height: 100%; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+.lane::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid var(--line); }
+.key { position: absolute; top: 50%; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; background: var(--chalk); transform: rotate(45deg); }
+.key.hold { background: var(--panel); outline: 1px solid var(--stone); }
+.key.snap { background: var(--stone); border-radius: 50%; }
+.tick { position: absolute; top: 4px; transform: translateX(-50%); color: var(--mute); }
+.ruler { height: 20px; }
+#head { position: absolute; top: 30px; bottom: 12px; width: 1px; background: var(--chalk); pointer-events: none; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--mute); }
+.legend i { display: inline-block; width: 7px; height: 7px; margin-right: 7px; background: var(--chalk); transform: rotate(45deg); }
+.legend i.hold { background: transparent; outline: 1px solid var(--stone); }
+.legend i.snap { background: var(--stone); border-radius: 50%; }
+.touch { display: flex; flex-direction: column; gap: 10px; max-width: 62ch; color: var(--stone); }
+.touch p { margin: 0; }
+.crown { display: flex; align-items: center; gap: 12px; }
+.crown label { font: 400 12px/1 var(--mono); color: var(--stone); }
+.crown input { flex: 1; min-width: 0; max-width: 320px; }
+table { border-collapse: collapse; font: 400 12px/1.5 var(--mono); width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 5px 14px 5px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--mute); font-weight: 400; }
+td { color: var(--stone); }
+td:first-child { color: var(--chalk); }
+.tablebox { overflow-x: auto; }
+.swatches { display: flex; flex-wrap: wrap; gap: 10px 22px; font: 400 12px/1.2 var(--mono); color: var(--stone); }
+.swatches span { display: flex; align-items: center; gap: 8px; }
+.swatches i { width: 18px; height: 18px; border-radius: 50%; outline: 1px solid var(--line); }
+@media (max-width: 760px) {
+  .cols { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .left { position: static; max-width: 300px; }
+  h1 { font-size: 32px; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1 id="name">Fetch</h1>
+    <p>Two characters for Chums on one rig. Twelve states at 24 frames a second, on a 396 × 484 pt screen.</p>
+    <div class="who" id="who"></div>
+  </header>
+
+  <div class="cols">
+    <div class="left">
+      <svg id="stage" viewBox="0 0 396 484" role="img" aria-label="The character, playing the selected state"></svg>
+      <div class="readout"><span id="rframe">frame 0 / 60</span><span id="rdur">2.5 s loop</span></div>
+      <div class="transport">
+        <button id="pause" type="button" aria-pressed="false">Pause</button>
+        <input id="scrub" type="range" min="0" max="60" step="1" value="0" aria-label="Frame">
+      </div>
+      <div class="wrist">
+        <figure><svg viewBox="0 0 396 484" width="60" height="73" aria-hidden="true"><use class="mini"/></svg><figcaption>1 m</figcaption></figure>
+        <figure><svg viewBox="0 0 396 484" width="30" height="37" aria-hidden="true"><use class="mini"/></svg><figcaption>2 m</figcaption></figure>
+        <p class="note">How big a 40 mm watch looks from 1 m and 2 m, on a monitor 60 cm away.</p>
+      </div>
+    </div>
+
+    <div class="right">
+      <section>
+        <h2>States</h2>
+        <div class="states" id="states"></div>
+      </section>
+
+      <section>
+        <p id="intent"></p>
+        <ul id="beats"></ul>
+      </section>
+
+      <section>
+        <h2>Dope sheet</h2>
+        <div class="sheetbox"><div id="sheet"></div></div>
+        <div class="legend">
+          <span><i></i>eased key</span><span><i class="snap"></i>snap, overshoot or spring</span><span><i class="hold"></i>hold</span>
+          <span>Click the sheet to move the playhead.</span>
+        </div>
+      </section>
+
+      <section>
+        <h2>Touch and crown</h2>
+        <div class="touch">
+          <p>Tap the dog to poke it. Stroke across it to pet it. Scroll over it, or drag the slider, to turn the crown: up and it sits tall, down and it bows. Turn it fast and it gets dizzy.</p>
+          <div class="crown"><label for="crown">Crown</label><input id="crown" type="range" min="-100" max="100" value="0"><button id="poke" type="button">Poke</button></div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Rig</h2>
+        <div class="swatches" id="swatches"></div>
+        <div class="tablebox"><table id="rig"><thead><tr><th>Layer</th><th>Parent</th><th>Pivot (pt)</th><th>Driven by</th></tr></thead><tbody></tbody></table></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+const M = {"fps":24,"eases":{"lin":"linear","inout":"cubic-bezier(0.45, 0, 0.55, 1)","in":"cubic-bezier(0.55, 0, 1, 0.45)","out":"cubic-bezier(0.16, 1, 0.3, 1)","antic":"cubic-bezier(0.36, 0, 0.66, -0.56)","over":"cubic-bezier(0.34, 1.56, 0.64, 1)","spring":"1 - exp(-6t) * cos(4*pi*t)","hold":"the value of the key before, until this frame"},"channels":{"root.x":"pt, + right","root.y":"pt, + down","root.rot":"deg about the ground point","root.sx":"scale about the ground point","root.sy":"scale about the ground point","torso.rot":"deg, + leans forward","head.rot":"deg, + neck forward and down","skull.rot":"deg, + nose down","earL.rot":"deg, + forward (near ear)","earR.rot":"deg, + forward (far ear)","eye.sy":"scale, 1 open, 0.12 shut","eye.x":"pt","eye.y":"pt","tail.rot":"deg, + up over the back","pawL.rot":"deg, - lifts forward (near leg)","pawR.rot":"deg (far leg)","dim":"0 to 1, 1 - opacity of the figure","flock.on":"opacity of the three dots","f1.y":"pt","f2.y":"pt","f3.y":"pt"},"states":{"idle":{"name":"Idle","frames":60,"enter":{"frames":10,"ease":"inout"},"intent":"Sitting, breathing, at ease. Ears a little back.","beats":["0-60: one breath. The body rises 1.8% by frame 30 and falls; the head follows 4 frames late.","0-60: the tail sways 5 degrees each way, once.","38-50: the near ear flicks forward in 2 frames and springs back.","50-55: one blink."],"tracks":{"root.sy":[[0,1],[30,1.018],[60,1]],"head.rot":[[0,0],[34,-2],[60,0]],"earL.rot":[[0,-8],[38,-8,"hold"],[40,8,"out"],[50,-8,"spring"],[60,-8,"hold"]],"earR.rot":[[0,-6],[60,-6]],"tail.rot":[[0,0],[15,5],[45,-5],[60,0]],"eye.sy":[[0,1],[50,1,"hold"],[52,0.12,"in"],[55,1,"out"],[60,1]]}},"listening":{"name":"Listening","frames":36,"enter":{"frames":5,"ease":"over"},"intent":"Snaps tall when you hold the screen. The body is still; only the ears work.","beats":["Enter, 5 frames, overshoot: the neck goes upright, both ears forward, the tail up and still.","0-36: the neck drifts 1.5 degrees and back. No blink.","8-16: the near ear turns 7 degrees further forward in 2 frames and springs back.","20-30: the far ear swings 9 degrees back in 2 frames and springs forward.","Live: add the microphone level times 6 degrees to both ears."],"tracks":{"root.sy":[[0,1.03],[36,1.03]],"torso.rot":[[0,-2],[36,-2]],"head.rot":[[0,-7],[18,-8.5],[36,-7]],"skull.rot":[[0,-4],[36,-4]],"earL.rot":[[0,10],[8,10,"hold"],[10,17,"out"],[16,10,"spring"],[36,10,"hold"]],"earR.rot":[[0,12],[20,12,"hold"],[22,3,"out"],[30,12,"spring"],[36,12,"hold"]],"tail.rot":[[0,14],[36,14]]}},"thinking":{"name":"Thinking","frames":48,"enter":{"frames":10,"ease":"inout"},"intent":"The head tilt of a dog working something out. Two tilts, with the ears split.","beats":["0-20: nose up 16 degrees, near ear back, far ear forward, eye up. Held.","20-26: the head rolls to the second tilt; the ears swap, 2 frames late, and spring.","26-42: held. The tail tip flicks once at 32.","42-48: back to the first tilt."],"tracks":{"head.rot":[[0,-4],[20,-4,"hold"],[26,2],[42,2,"hold"],[48,-4]],"skull.rot":[[0,-16],[20,-17],[26,-5],[42,-5,"hold"],[48,-16]],"torso.rot":[[0,0],[20,0,"hold"],[26,2],[42,2,"hold"],[48,0]],"earL.rot":[[0,-22],[22,-22,"hold"],[30,12,"spring"],[44,12,"hold"],[48,-22,"out"]],"earR.rot":[[0,14],[22,14,"hold"],[30,-18,"spring"],[44,-18,"hold"],[48,14,"out"]],"eye.y":[[0,-1.5],[20,-1.5,"hold"],[26,0.5],[42,0.5,"hold"],[48,-1.5]],"tail.rot":[[0,-10],[32,-10,"hold"],[34,0,"out"],[40,-10,"spring"],[48,-10,"hold"]]}},"working":{"name":"Working","frames":24,"enter":{"frames":8,"ease":"out"},"intent":"Nose down, on a scent. The tail keeps time at two beats a second.","beats":["Enter, 8 frames, snap: the body leans in and the nose goes down.","0-24: the neck sweeps 6 degrees along the ground and back.","0-12: two sniffs. The nose dips 6 degrees in 3 frames and eases back, twice.","0-24: the tail, held high, swings 16 degrees twice.","0-12: the ears, held back, bob 6 degrees with each sniff. One blink at 18."],"tracks":{"torso.rot":[[0,4],[24,4]],"head.rot":[[0,16],[12,22],[24,16]],"skull.rot":[[0,24],[3,30,"out"],[6,24],[9,30,"out"],[12,24],[24,24]],"earL.rot":[[0,-12],[4,-6],[8,-14],[12,-8],[24,-12]],"earR.rot":[[0,-8],[5,-2],[9,-10],[13,-4],[24,-8]],"tail.rot":[[0,20],[6,36],[12,20],[18,36],[24,20]],"eye.sy":[[0,1],[18,1,"hold"],[20,0.12,"in"],[22,1,"out"],[24,1]]}},"subagents":{"name":"Subagents","frames":48,"enter":{"frames":8,"ease":"over"},"intent":"A herding dog minding its flock. One dot on the ground for each subagent running, three at most.","beats":["Enter, 8 frames: the dots fade in on the ground line; the head turns down to them.","0-8, 12-20, 24-32: each dot hops 14 pt in turn (4 frames up, 4 down).","8, 20, 32: the head nods 5 degrees as each dot lands, counting them.","36-48: the head lifts 4 degrees, then goes back to the first dot.","0-48: the tail sways 8 degrees each way, twice."],"tracks":{"flock.on":[[0,1],[48,1]],"f1.y":[[0,0],[4,-14,"out"],[8,0,"in"],[48,0,"hold"]],"f2.y":[[0,0],[12,0,"hold"],[16,-14,"out"],[20,0,"in"],[48,0,"hold"]],"f3.y":[[0,0],[24,0,"hold"],[28,-14,"out"],[32,0,"in"],[48,0,"hold"]],"torso.rot":[[0,2],[48,2]],"head.rot":[[0,12],[36,16],[42,8],[48,12]],"skull.rot":[[0,12],[6,12,"hold"],[9,17,"out"],[13,12],[18,12,"hold"],[21,17,"out"],[25,12],[30,12,"hold"],[33,17,"out"],[37,12],[48,12]],"earL.rot":[[0,12],[48,12]],"earR.rot":[[0,14],[48,14]],"tail.rot":[[0,10],[6,18],[18,2],[30,18],[42,2],[48,10]]}},"speaking":{"name":"Speaking","frames":24,"enter":{"frames":6,"ease":"out"},"intent":"No mouth. The chin lifts on each syllable and the ears follow 2 frames behind.","beats":["0, 6, 12, 19: four syllables in an uneven rhythm. The chin snaps up 4 to 8 degrees in 3 frames and eases down.","The ears swing the other way at about half the size, 2 frames late.","The body rises 1.2% on the two strong syllables (3 and 15).","Live: scale the chin lift by the speech level instead of playing the loop."],"tracks":{"head.rot":[[0,-3],[24,-3]],"skull.rot":[[0,-2],[3,-9,"out"],[6,-3],[9,-7,"out"],[12,-2],[15,-10,"out"],[19,-3],[21,-6,"out"],[24,-2]],"earL.rot":[[0,-4],[5,4],[8,-3],[11,2],[14,-4],[17,5],[21,-2],[24,-4]],"earR.rot":[[0,-2],[6,5],[9,-2],[12,3],[15,-3],[18,6],[22,-1],[24,-2]],"root.sy":[[0,1],[3,1.012,"out"],[8,1],[12,1,"hold"],[15,1.012,"out"],[20,1],[24,1]],"tail.rot":[[0,6],[12,12],[24,6]]}},"needs":{"name":"Needs You","frames":48,"enter":{"frames":8,"ease":"over"},"intent":"Asks without insisting: a paw lifted, pawing the air twice, the head tilted at you.","beats":["0-2: the paw presses 3 degrees into the ground (anticipation).","2-8: the paw lifts 34 degrees with overshoot; the head tilts to nose up 12.","8-26: two pawing strokes, 14 degrees each, snapping up and easing down.","26-34: held.","34-40: the paw comes down; 40-48: at rest.","0-48: the tail sways 9 degrees each way, twice."],"tracks":{"pawL.rot":[[0,0],[2,3],[8,-34,"over"],[13,-20],[17,-34,"out"],[22,-20],[26,-34,"out"],[34,-34,"hold"],[40,0,"in"],[48,0,"hold"]],"head.rot":[[0,-3],[48,-3]],"skull.rot":[[0,-6],[8,-12,"over"],[34,-12,"hold"],[42,-6],[48,-6]],"earL.rot":[[0,8],[8,14,"over"],[34,14,"hold"],[42,8],[48,8]],"earR.rot":[[0,-10],[48,-10]],"tail.rot":[[0,-4],[12,14],[24,-4],[36,14],[48,-4]]}},"approval":{"name":"Approval","frames":48,"enter":{"frames":4,"ease":"out"},"intent":"A dog told to stay. Rigid, pointing at the card, straining to go.","beats":["Enter, 4 frames, snap, no overshoot: it freezes leaning forward, neck out, nose level, ears locked, tail low and straight.","0-36: the body creeps 2.5 degrees further forward. No blink.","30-40: the tail quivers, 2 to 3 degrees, every 2 frames.","36-40: it catches itself and snaps back 3 degrees.","40-48: settles into the hold.","Allowed: play Done. Denied: play the entry to Idle."],"tracks":{"torso.rot":[[0,4],[36,6.5,"in"],[40,3.5,"out"],[48,4]],"head.rot":[[0,16],[36,19,"in"],[40,15,"out"],[48,16]],"skull.rot":[[0,-12],[48,-12]],"earL.rot":[[0,16],[36,16,"hold"],[40,20,"out"],[48,16]],"earR.rot":[[0,18],[36,18,"hold"],[40,22,"out"],[48,18]],"tail.rot":[[0,-24],[30,-24,"hold"],[32,-21,"lin"],[34,-26,"lin"],[36,-22,"lin"],[38,-25,"lin"],[40,-24,"lin"],[48,-24,"hold"]]}},"blocked":{"name":"Blocked","frames":48,"enter":{"frames":12,"ease":"inout"},"intent":"Something failed. The head hangs, the ears lie flat, the tail drops.","beats":["Enter, 12 frames: the whole figure sinks 5%.","0-10: a shudder, 3 pt side to side, dying out.","10-30: a slow breath in, the head lifting 3 degrees.","30-48: the sigh out, the body sinking to 94%.","36-44: the near ear lifts 12 degrees and springs flat again.","The eye stays half shut."],"tracks":{"root.x":[[0,0],[2,-3,"lin"],[4,3,"lin"],[6,-2,"lin"],[8,1,"lin"],[10,0,"lin"],[48,0,"hold"]],"root.sy":[[0,0.95],[10,0.95,"hold"],[30,0.975],[40,0.94],[48,0.95]],"torso.rot":[[0,3],[48,3]],"head.rot":[[0,26],[10,26,"hold"],[30,23],[40,28],[48,26]],"skull.rot":[[0,20],[48,20]],"earL.rot":[[0,-72],[36,-72,"hold"],[38,-60,"out"],[44,-72,"spring"],[48,-72,"hold"]],"earR.rot":[[0,-66],[48,-66]],"tail.rot":[[0,-26],[48,-26]],"eye.sy":[[0,0.45],[48,0.45]]}},"done":{"name":"Done","frames":36,"enter":{"frames":4,"ease":"out"},"intent":"One hop on the spot, then sitting proud. The tail wags four times a second throughout.","beats":["0-4: squash to 90% (anticipation).","4-10: launch. The body stretches to 105% and leaves the ground by 24 pt; the ears drag back.","10-16: the fall.","16-17: the landing, squashed to 92%; the ears whip forward.","17-27: recovery with overshoot to 103%, then rest.","27-36: sitting tall, the tail still going."],"tracks":{"root.y":[[0,0],[4,0,"hold"],[10,-24,"out"],[16,0,"in"],[36,0,"hold"]],"root.sy":[[0,1],[4,0.9],[8,1.05,"out"],[13,1],[17,0.92,"in"],[22,1.03,"over"],[27,1],[36,1]],"root.sx":[[0,1],[4,1.06],[8,0.96,"out"],[13,1],[17,1.05,"in"],[22,0.985,"over"],[27,1],[36,1]],"head.rot":[[0,-6],[4,2],[10,-12,"out"],[17,4,"in"],[23,-6,"over"],[36,-6]],"skull.rot":[[0,-6],[36,-6]],"earL.rot":[[0,6],[5,14],[10,-26,"out"],[17,16,"in"],[26,6,"spring"],[36,6,"hold"]],"earR.rot":[[0,8],[6,16],[11,-24,"out"],[18,18,"in"],[27,8,"spring"],[36,8,"hold"]],"tail.rot":[[0,10],[3,38],[6,10],[9,38],[12,10],[15,38],[18,10],[21,38],[24,10],[27,38],[30,10],[33,38],[36,10]]}},"dizzy":{"name":"Dizzy","frames":36,"enter":{"frames":6,"ease":"inout"},"intent":"The nose draws a circle. Everything else lags behind it.","beats":["0-36: the body sways 5 degrees each way about the ground point, once.","0-36: the neck and the skull turn a quarter of a cycle apart, so the nose goes round once.","The ears swing 20 degrees the other way, the far ear 4 frames after the near one.","The eye goes round twice, 2 pt from its centre.","The front legs brace apart; the tail hangs."],"tracks":{"root.rot":[[0,0],[9,5],[18,0],[27,-5],[36,0]],"head.rot":[[0,8],[9,0],[18,-8],[27,0],[36,8]],"skull.rot":[[0,0],[9,-11],[18,0],[27,11],[36,0]],"earL.rot":[[0,-20],[9,-4],[18,20],[27,4],[36,-20]],"earR.rot":[[0,-6],[4,-20],[13,-4],[22,20],[31,4],[36,-6]],"eye.x":[[0,2],[4.5,0],[9,-2],[13.5,0],[18,2],[22.5,0],[27,-2],[31.5,0],[36,2]],"eye.y":[[0,0],[4.5,2],[9,0],[13.5,-2],[18,0],[22.5,2],[27,0],[31.5,-2],[36,0]],"tail.rot":[[0,-20],[18,-12],[36,-20]],"pawL.rot":[[0,-7],[36,-7]],"pawR.rot":[[0,6],[36,6]]}},"sleep":{"name":"Sleep","frames":60,"enter":{"frames":24,"ease":"inout"},"intent":"Chin on the chest, eye shut, dimmed to half to spare the screen.","beats":["Enter, 24 frames: the head sinks, the ears fold, the figure dims to 50%.","0-60: one slow breath, 2.5% of the body's height.","44-52: the near ear twitches 11 degrees and springs flat (a dream)."],"tracks":{"dim":[[0,0.5],[60,0.5]],"root.sy":[[0,0.93],[26,0.955],[60,0.93]],"torso.rot":[[0,3],[60,3]],"head.rot":[[0,26],[28,24],[60,26]],"skull.rot":[[0,36],[60,36]],"earL.rot":[[0,-75],[44,-75,"hold"],[46,-64,"out"],[52,-75,"spring"],[60,-75,"hold"]],"earR.rot":[[0,-70],[60,-70]],"tail.rot":[[0,-24],[60,-24]],"eye.sy":[[0,0.12],[60,0.12]]}}},"reactions":{"poke":{"name":"Poke","frames":14,"intent":"A single tap. Added to whatever state is playing.","beats":["0-2: a flinch. The figure squashes 6% sideways, the nose jerks up 8 degrees, the ears pop 22 degrees forward, the eye widens.","2-8: the rebound overshoots to 103%.","8-14: the ears and tail spring to rest."],"tracks":{"root.sx":[[0,0],[2,-0.06,"out"],[7,0.03,"over"],[14,0]],"root.sy":[[0,0],[2,0.04,"out"],[7,-0.02,"over"],[14,0]],"skull.rot":[[0,0],[2,-8,"out"],[8,2,"over"],[14,0]],"earL.rot":[[0,0],[2,22,"out"],[14,0,"spring"]],"earR.rot":[[0,0],[3,22,"out"],[14,0,"spring"]],"eye.sy":[[0,0],[2,0.3,"out"],[8,0],[14,0,"hold"]],"tail.rot":[[0,0],[3,18,"out"],[14,0,"spring"]]}}}};
+const RIGS = {"fetch": {"name": "Fetch", "svg": "<g id=\"fetch\" data-pivot=\"169 418\">\n  <g id=\"flock\" opacity=\"0\"><circle id=\"flock-1\" cx=\"336\" cy=\"404\" r=\"7.5\" fill=\"#A89B89\"/><circle id=\"flock-2\" cx=\"356\" cy=\"404\" r=\"7.5\" fill=\"#A89B89\"/><circle id=\"flock-3\" cx=\"376\" cy=\"404\" r=\"7.5\" fill=\"#A89B89\"/></g>\n  <g id=\"tail\" data-pivot=\"100 388\"><path d=\"M99.6 377 Q47.1 378.8 50.5 310.3 A6.5 6.5 0 0 0 37.5 309.7 Q32.9 401.2 100.4 399 A11 11 0 0 0 99.6 377 Z\" fill=\"#F2EEE6\"/></g>\n  <g id=\"paw-right\" data-pivot=\"285 280\"><rect x=\"271\" y=\"266\" width=\"28\" height=\"152\" rx=\"14\" fill=\"#A89B89\"/><rect x=\"271\" y=\"396\" width=\"46\" height=\"22\" rx=\"11\" fill=\"#A89B89\"/></g>\n  <g id=\"torso\" data-pivot=\"144 349\">\n    <path id=\"torso-shape\" d=\"M200.6 388.5 L272.8 284.9 A40 40 0 0 0 220.5 227.1 L110.3 288.8 A69 69 0 1 0 200.6 388.5 Z\" fill=\"#F2EEE6\"/>\n    <rect id=\"hind-foot\" x=\"142\" y=\"398\" width=\"88\" height=\"20\" rx=\"10\" fill=\"#F2EEE6\"/>\n    <g id=\"head\" data-pivot=\"242 252\">\n      <path id=\"neck\" d=\"M271.8 255.7 L281.8 175 A24 24 0 0 0 234.9 165.6 L213.1 244 A30 30 0 1 0 271.8 255.7 Z\" fill=\"#F2EEE6\"/>\n      <rect id=\"collar\" x=\"196.8\" y=\"223.5\" width=\"100\" height=\"9\" fill=\"#000000\" transform=\"rotate(11.3 246.8 228)\"/>\n      <g id=\"skull\" data-pivot=\"258 172\">\n        <g id=\"ear-right\" data-pivot=\"272 124\"><path d=\"M287.3 119.4 L272.8 70.6 A5 5 0 0 0 263 71.3 L256.1 121.8 A16 16 0 1 0 287.3 119.4 Z\" fill=\"#A89B89\"/></g>\n        <path id=\"head-shape\" d=\"M266.8 187.9 L331.1 183 A15 15 0 0 0 337.9 155.2 L282.9 121.4 A36 36 0 1 0 266.8 187.9 Z\" fill=\"#F2EEE6\"/>\n        <g id=\"ear-left\" data-pivot=\"247 130\"><path d=\"M261.6 123.5 L240.6 76 A5 5 0 0 0 231 78 L231 130 A16 16 0 1 0 261.6 123.5 Z\" fill=\"#F2EEE6\"/></g>\n        <g id=\"accent\">\n          <circle cx=\"340\" cy=\"159\" r=\"7\" fill=\"#000000\" id=\"nose\"/>\n          <g id=\"eye\" data-pivot=\"287 147\"><circle cx=\"287\" cy=\"147\" r=\"5.5\" fill=\"#000000\"/></g>\n        </g>\n      </g>\n    </g>\n  </g>\n  <g id=\"paw-left\" data-pivot=\"268 280\"><rect x=\"254\" y=\"266\" width=\"28\" height=\"152\" rx=\"14\" fill=\"#F2EEE6\"/><rect x=\"254\" y=\"396\" width=\"46\" height=\"22\" rx=\"11\" fill=\"#F2EEE6\"/></g>\n</g>", "gain": {}, "colors": [["Chalk", "#F2EEE6"], ["Stone", "#A89B89"], ["Black", "#000000"]]}, "biscuit": {"name": "Biscuit", "svg": "<g id=\"biscuit\" data-pivot=\"170 418\">\n  <g id=\"flock\" opacity=\"0\"><circle id=\"flock-1\" cx=\"318\" cy=\"404\" r=\"7.5\" fill=\"#B45F1B\"/><circle id=\"flock-2\" cx=\"340\" cy=\"404\" r=\"7.5\" fill=\"#B45F1B\"/><circle id=\"flock-3\" cx=\"362\" cy=\"404\" r=\"7.5\" fill=\"#B45F1B\"/></g>\n  <g id=\"tail\" data-pivot=\"104 396\"><path d=\"M103.3 386 Q32.5 391.2 53.8 293.7 A8 8 0 0 0 38.2 290.3 Q11.5 412.8 104.7 406 A10 10 0 0 0 103.3 386 Z\" fill=\"#F28A2E\"/></g>\n  <g id=\"paw-right\" data-pivot=\"262 316\"><rect x=\"249\" y=\"304\" width=\"26\" height=\"114\" rx=\"13\" fill=\"#B45F1B\"/><rect x=\"249\" y=\"398\" width=\"40\" height=\"20\" rx=\"10\" fill=\"#B45F1B\"/></g>\n  <g id=\"torso\" data-pivot=\"150 354\">\n    <path id=\"torso-shape\" d=\"M198.8 395.4 L255.6 328.5 A44 44 0 0 0 204.1 259.8 L123.9 295.5 A64 64 0 1 0 198.8 395.4 Z\" fill=\"#F28A2E\"/>\n    <rect id=\"hind-foot\" x=\"150\" y=\"398\" width=\"74\" height=\"20\" rx=\"10\" fill=\"#F28A2E\"/>\n    <g id=\"head\" data-pivot=\"228 284\">\n      <path id=\"neck\" d=\"M263.5 289.9 L271.6 241.2 A32 32 0 0 0 209.7 225.8 L193.9 272.5 A36 36 0 1 0 263.5 289.9 Z\" fill=\"#F28A2E\"/>\n      <rect id=\"collar\" x=\"183\" y=\"259.3\" width=\"100\" height=\"9\" fill=\"#000000\" transform=\"rotate(14 233 263.8)\"/>\n      <g id=\"skull\" data-pivot=\"240 236\">\n        <g id=\"ear-right\" data-pivot=\"262 150\"><path d=\"M280.8 147.2 L274 101.4 A4 4 0 0 0 266.4 100.2 L245.1 141.3 A19 19 0 1 0 280.8 147.2 Z\" fill=\"#B45F1B\"/></g>\n        <path id=\"head-shape\" d=\"M269.6 246.3 L300 234.5 A22 22 0 0 0 312.3 205.6 L299.9 175.5 A54 54 0 1 0 269.6 246.3 Z\" fill=\"#F28A2E\"/>\n        <g id=\"ear-left\" data-pivot=\"218 160\"><path d=\"M234.2 150 L209.4 109.9 A4 4 0 0 0 202 111.7 L199 158.8 A19 19 0 1 0 234.2 150 Z\" fill=\"#F28A2E\"/></g>\n        <g id=\"accent\">\n          <circle cx=\"311\" cy=\"206\" r=\"5\" fill=\"#000000\" id=\"nose\"/>\n          <g id=\"eye\" data-pivot=\"280 190\"><circle cx=\"280\" cy=\"190\" r=\"6.5\" fill=\"#000000\"/></g>\n        </g>\n      </g>\n    </g>\n  </g>\n  <g id=\"paw-left\" data-pivot=\"247 316\"><rect x=\"234\" y=\"304\" width=\"26\" height=\"114\" rx=\"13\" fill=\"#F28A2E\"/><rect x=\"234\" y=\"398\" width=\"40\" height=\"20\" rx=\"10\" fill=\"#F28A2E\"/></g>\n</g>", "gain": {"head.rot": 0.5, "skull.rot": 0.6, "torso.rot": 0.7, "tail.rot": 0.6, "pawL.rot": 0.9}, "colors": [["Orange", "#F28A2E"], ["Rust", "#B45F1B"], ["Black", "#000000"]]}};
+let who = 'fetch';
+const FPS = M.fps, DEF = { 'root.sx': 1, 'root.sy': 1, 'eye.sy': 1 };
+const CH = Object.keys(M.channels);
+
+// ---- easing ----
+function bez(x1, y1, x2, y2) {
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx, cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  return x => { let lo = 0, hi = 1, t = x;
+    for (let i = 0; i < 24; i++) { const v = ((ax * t + bx) * t + cx) * t; if (Math.abs(v - x) < 1e-5) break; v < x ? lo = t : hi = t; t = (lo + hi) / 2; }
+    return ((ay * t + by) * t + cy) * t; };
+}
+const E = { lin: t => t, inout: bez(.45, 0, .55, 1), in: bez(.55, 0, 1, .45), out: bez(.16, 1, .3, 1),
+  antic: bez(.36, 0, .66, -.56), over: bez(.34, 1.56, .64, 1),
+  spring: t => t >= 1 ? 1 : 1 - Math.exp(-6 * t) * Math.cos(4 * Math.PI * t), hold: t => t >= 1 ? 1 : 0 };
+function sample(keys, f) {
+  if (f <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) if (f <= keys[i][0]) {
+    const a = keys[i - 1], b = keys[i];
+    return a[1] + (b[1] - a[1]) * E[b[2] || 'inout']((f - a[0]) / (b[0] - a[0]));
+  }
+  return keys[keys.length - 1][1];
+}
+function poseOf(tracks, f, additive) {
+  const p = {};
+  for (const c of CH) p[c] = tracks[c] ? sample(tracks[c], f) : (additive ? 0 : (DEF[c] ?? 0));
+  return p;
+}
+
+// ---- the rig ----
+const $ = id => document.getElementById(id);
+const piv = id => $(id).dataset.pivot.split(' ').map(Number);
+const rot = (id, a) => { const [x, y] = piv(id); $(id).setAttribute('transform', `rotate(${a.toFixed(3)} ${x} ${y})`); };
+function apply(p) {
+  const [gx, gy] = piv(who);
+  $(who).setAttribute('transform', `translate(${p['root.x']} ${p['root.y']}) rotate(${p['root.rot']} ${gx} ${gy}) translate(${gx} ${gy}) scale(${p['root.sx']} ${p['root.sy']}) translate(${-gx} ${-gy})`);
+  $(who).setAttribute('opacity', 1 - p.dim);
+  rot('torso', p['torso.rot']); rot('head', p['head.rot']); rot('skull', p['skull.rot']);
+  rot('ear-left', p['earL.rot']); rot('ear-right', p['earR.rot']); rot('tail', p['tail.rot']);
+  rot('paw-left', p['pawL.rot']); rot('paw-right', p['pawR.rot']);
+  const [ex, ey] = piv('eye');
+  $('eye').setAttribute('transform', `translate(${ex + p['eye.x']} ${ey + p['eye.y']}) scale(1 ${Math.max(.1, p['eye.sy'])}) translate(${-ex} ${-ey})`);
+  $('flock').setAttribute('opacity', Math.max(0, Math.min(1, p['flock.on'])));
+  [1, 2, 3].forEach(i => $('flock-' + i).setAttribute('transform', `translate(0 ${p['f' + i + '.y']})`));
+}
+
+// ---- playback ----
+let cur = 'idle', t0 = performance.now(), from = null, shown = poseOf(M.states.idle.tracks, 0);
+let paused = matchMedia('(prefers-reduced-motion: reduce)').matches, frame = 0, last = performance.now();
+let pokeAt = -1e9, pet = 0, petting = false, petX = .5, crown = 0, crownAt = 0, spin = 0, back = null;
+function setState(id, keepBack) {
+  if (!keepBack) back = null;
+  from = { ...shown }; cur = id; t0 = performance.now(); frame = 0;
+  document.querySelectorAll('#states button').forEach(b => b.setAttribute('aria-pressed', b.dataset.id === id));
+  describe();
+}
+function tick(now) {
+  const dt = Math.min(.1, (now - last) / 1000); last = now;
+  const S = M.states[cur];
+  if (!paused) frame += dt * FPS;
+  const p = poseOf(S.tracks, frame % S.frames);
+  if (from) {
+    const k = Math.min(1, frame / S.enter.frames);
+    if (k >= 1 || paused) from = null;
+    else { const e = E[S.enter.ease](k); for (const c of CH) p[c] = from[c] + (p[c] - from[c]) * e; }
+  }
+  const G = RIGS[who].gain; for (const c in G) p[c] *= G[c];
+  // poke: a one-shot added on top
+  const pf = (now - pokeAt) / 1000 * FPS, P = M.reactions.poke;
+  if (pf < P.frames) { const a = poseOf(P.tracks, pf, true); for (const c of CH) p[c] += a[c]; }
+  // pet: follows the finger, 18 frames to let go
+  pet += ((petting ? 1 : 0) - pet) * Math.min(1, dt * (petting ? 12 : 4));
+  if (pet > .002) {
+    const w = Math.sin(now / 1000 * Math.PI * 4);
+    p['earL.rot'] += (-52 - p['earL.rot']) * pet; p['earR.rot'] += (-46 - p['earR.rot']) * pet;
+    p['eye.sy'] += (.12 - p['eye.sy']) * pet;
+    p['skull.rot'] += (6 + (petX - .5) * 10) * pet; p['head.rot'] += 5 * pet; p['root.sy'] -= .02 * pet;
+    p['tail.rot'] += (16 + 14 * w) * pet;
+  }
+  // crown: up sits tall, down bows; let go and it comes back
+  if (now - crownAt > 500 && crown) { crown *= Math.exp(-dt * 7); if (Math.abs(crown) < .004) crown = 0; $('crown').value = crown * 100; }
+  spin *= Math.exp(-dt * 2.5);
+  if (crown > 0) { p['head.rot'] -= 10 * crown; p['skull.rot'] -= 9 * crown; p['root.sy'] += .04 * crown; p['earL.rot'] += 10 * crown; p['earR.rot'] += 10 * crown; }
+  if (crown < 0) { p['head.rot'] -= 28 * crown; p['torso.rot'] -= 4 * crown; p['skull.rot'] -= 6 * crown; p['tail.rot'] -= 18 * crown; }
+  if (spin > 3.2 && cur !== 'dizzy') { const b = cur; setState('dizzy', true); back = { id: b, at: now + 2200 }; spin = 0; }
+  if (back && now > back.at && cur === 'dizzy') { const b = back.id; back = null; setState(b); }
+  shown = p; apply(p); readout(S);
+  requestAnimationFrame(tick);
+}
+function readout(S) {
+  const f = Math.floor(frame % S.frames);
+  $('rframe').textContent = `frame ${String(f).padStart(2, '0')} / ${S.frames}`;
+  if (document.activeElement !== $('scrub')) $('scrub').value = f;
+  $('head').style.left = `calc(14px + 76px + (100% - 28px - 76px) * ${(frame % S.frames) / S.frames})`;
+}
+
+// ---- the page around it ----
+function describe() {
+  const S = M.states[cur];
+  $('rdur').textContent = `${(S.frames / FPS).toFixed(2).replace(/0$/, '')} s loop, enter ${S.enter.frames} f ${S.enter.ease}`;
+  $('scrub').max = S.frames - 1;
+  $('intent').textContent = S.intent;
+  $('beats').innerHTML = S.beats.map(b => { const m = b.match(/^([^:]{1,20}):\s*(.*)$/); return m ? `<li><b>${m[1]}</b><span>${m[2]}</span></li>` : `<li><b></b><span>${b}</span></li>`; }).join('');
+  const lane = (keys) => keys.map(k => { const e = k[2] || 'inout';
+    const cls = e === 'hold' ? ' hold' : (['out', 'over', 'spring', 'antic'].includes(e) ? ' snap' : '');
+    return `<i class="key${cls}" style="left:${k[0] / S.frames * 100}%" title="frame ${k[0]}: ${k[1]} (${e})"></i>`; }).join('');
+  let ticks = ''; for (let f = 0; f <= S.frames; f += 6) ticks += `<span class="tick" style="left:${f / S.frames * 100}%">${f}</span>`;
+  $('sheet').innerHTML = `<div class="row ruler"><span>frame</span><div class="lane" style="border:0">${ticks}</div></div>` +
+    Object.entries(S.tracks).map(([c, k]) => `<div class="row"><span>${c}</span><div class="lane">${lane(k)}</div></div>`).join('') + '<div id="head"></div>';
+}
+$('states').innerHTML = Object.entries(M.states).map(([id, s]) => `<button type="button" data-id="${id}" aria-pressed="${id === cur}">${s.name}</button>`).join('');
+$('states').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setState(b.dataset.id); });
+$('pause').addEventListener('click', () => { paused = !paused; $('pause').setAttribute('aria-pressed', paused); $('pause').textContent = paused ? 'Play' : 'Pause'; });
+$('scrub').addEventListener('input', e => { frame = +e.target.value; from = null; });
+$('sheet').addEventListener('click', e => { const r = $('sheet').getBoundingClientRect(), x = (e.clientX - r.left - 90) / (r.width - 104);
+  if (x >= 0 && x <= 1) { frame = x * M.states[cur].frames; from = null; } });
+const pokes = [];
+function poke() { const now = performance.now(); pokeAt = now; pokes.push(now); while (now - pokes[0] > 3000) pokes.shift();
+  if (pokes.length >= 4 && cur !== 'dizzy') { pokes.length = 0; const b = cur; setState('dizzy', true); back = { id: b, at: now + 1500 }; } }
+$('poke').addEventListener('click', poke);
+$('crown').addEventListener('input', e => turn(e.target.value / 100 - crown));
+function turn(d) { crown = Math.max(-1, Math.min(1, crown + d)); crownAt = performance.now(); spin += Math.abs(d); $('crown').value = crown * 100; }
+const stage = $('stage'); let down = null;
+stage.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; });
+stage.addEventListener('pointermove', e => { if (!down) return;
+  if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) petting = true;
+  const r = stage.getBoundingClientRect(); petX = (e.clientX - r.left) / r.width; });
+const up = () => { if (down && !petting) poke(); down = null; petting = false; };
+stage.addEventListener('pointerup', up); stage.addEventListener('pointerleave', () => { down = null; petting = false; });
+stage.addEventListener('pointercancel', () => { down = null; petting = false; });
+stage.addEventListener('wheel', e => { e.preventDefault(); turn(-e.deltaY * .0025); }, { passive: false });
+
+const RIG = [['root', 'none', 'root.x, root.y, root.rot, root.sx, root.sy, dim'], ['torso', 'root', 'torso.rot'], ['head', 'torso', 'head.rot'],
+  ['skull', 'head', 'skull.rot'], ['ear-left', 'skull', 'earL.rot'], ['ear-right', 'skull', 'earR.rot'], ['eye', 'skull (in accent)', 'eye.x, eye.y, eye.sy'],
+  ['paw-left', 'root', 'pawL.rot'], ['paw-right', 'root', 'pawR.rot'], ['tail', 'root', 'tail.rot'], ['flock', 'root', 'flock.on, f1.y, f2.y, f3.y']];
+function cast(id) {
+  who = id; $('stage').innerHTML = RIGS[id].svg; $('name').textContent = RIGS[id].name;
+  document.querySelectorAll('use.mini').forEach(u => u.setAttribute('href', '#' + id));
+  document.querySelectorAll('#who button').forEach(b => b.setAttribute('aria-pressed', b.dataset.id === id));
+  $('swatches').innerHTML = RIGS[id].colors.map(([n, h]) => `<span><i style="background:${h}"></i>${n} ${h}</span>`).join('');
+  document.querySelector('#rig tbody').innerHTML = RIG.map(([g, par, ch]) => { const el = $(g === 'root' ? id : g), name = g === 'root' ? id : g;
+    return `<tr><td>${name}</td><td>${par === 'root' ? id : par}</td><td>${el.dataset.pivot ? el.dataset.pivot.replace(' ', ', ') : 'none'}</td><td>${ch}</td></tr>`; }).join('');
+}
+$('who').innerHTML = Object.entries(RIGS).map(([id, r]) => `<button type="button" data-id="${id}">${r.name}</button>`).join('');
+$('who').addEventListener('click', e => { const b = e.target.closest('button'); if (b) cast(b.dataset.id); });
+cast('fetch'); describe(); requestAnimationFrame(tick);
+window.__fetch = { cast, setState, at: f => { frame = f; from = null; paused = true; } };
+</script>

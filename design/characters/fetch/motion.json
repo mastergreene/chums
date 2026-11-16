@@ -1,0 +1,291 @@
+{
+  "fps": 24,
+  "eases": {
+    "lin": "linear",
+    "inout": "cubic-bezier(0.45, 0, 0.55, 1)",
+    "in": "cubic-bezier(0.55, 0, 1, 0.45)",
+    "out": "cubic-bezier(0.16, 1, 0.3, 1)",
+    "antic": "cubic-bezier(0.36, 0, 0.66, -0.56)",
+    "over": "cubic-bezier(0.34, 1.56, 0.64, 1)",
+    "spring": "1 - exp(-6t) * cos(4*pi*t)",
+    "hold": "the value of the key before, until this frame"
+  },
+  "channels": {
+    "root.x": "pt, + right", "root.y": "pt, + down", "root.rot": "deg about the ground point",
+    "root.sx": "scale about the ground point", "root.sy": "scale about the ground point",
+    "torso.rot": "deg, + leans forward", "head.rot": "deg, + neck forward and down",
+    "skull.rot": "deg, + nose down", "earL.rot": "deg, + forward (near ear)", "earR.rot": "deg, + forward (far ear)",
+    "eye.sy": "scale, 1 open, 0.12 shut", "eye.x": "pt", "eye.y": "pt",
+    "tail.rot": "deg, + up over the back", "pawL.rot": "deg, - lifts forward (near leg)", "pawR.rot": "deg (far leg)",
+    "dim": "0 to 1, 1 - opacity of the figure", "flock.on": "opacity of the three dots",
+    "f1.y": "pt", "f2.y": "pt", "f3.y": "pt"
+  },
+  "states": {
+    "idle": {
+      "name": "Idle", "frames": 60, "enter": {"frames": 10, "ease": "inout"},
+      "intent": "Sitting, breathing, at ease. Ears a little back.",
+      "beats": [
+        "0-60: one breath. The body rises 1.8% by frame 30 and falls; the head follows 4 frames late.",
+        "0-60: the tail sways 5 degrees each way, once.",
+        "38-50: the near ear flicks forward in 2 frames and springs back.",
+        "50-55: one blink."
+      ],
+      "tracks": {
+        "root.sy": [[0, 1], [30, 1.018], [60, 1]],
+        "head.rot": [[0, 0], [34, -2], [60, 0]],
+        "earL.rot": [[0, -8], [38, -8, "hold"], [40, 8, "out"], [50, -8, "spring"], [60, -8, "hold"]],
+        "earR.rot": [[0, -6], [60, -6]],
+        "tail.rot": [[0, 0], [15, 5], [45, -5], [60, 0]],
+        "eye.sy": [[0, 1], [50, 1, "hold"], [52, 0.12, "in"], [55, 1, "out"], [60, 1]]
+      }
+    },
+    "listening": {
+      "name": "Listening", "frames": 36, "enter": {"frames": 5, "ease": "over"},
+      "intent": "Snaps tall when you hold the screen. The body is still; only the ears work.",
+      "beats": [
+        "Enter, 5 frames, overshoot: the neck goes upright, both ears forward, the tail up and still.",
+        "0-36: the neck drifts 1.5 degrees and back. No blink.",
+        "8-16: the near ear turns 7 degrees further forward in 2 frames and springs back.",
+        "20-30: the far ear swings 9 degrees back in 2 frames and springs forward.",
+        "Live: add the microphone level times 6 degrees to both ears."
+      ],
+      "tracks": {
+        "root.sy": [[0, 1.03], [36, 1.03]],
+        "torso.rot": [[0, -2], [36, -2]],
+        "head.rot": [[0, -7], [18, -8.5], [36, -7]],
+        "skull.rot": [[0, -4], [36, -4]],
+        "earL.rot": [[0, 10], [8, 10, "hold"], [10, 17, "out"], [16, 10, "spring"], [36, 10, "hold"]],
+        "earR.rot": [[0, 12], [20, 12, "hold"], [22, 3, "out"], [30, 12, "spring"], [36, 12, "hold"]],
+        "tail.rot": [[0, 14], [36, 14]]
+      }
+    },
+    "thinking": {
+      "name": "Thinking", "frames": 48, "enter": {"frames": 10, "ease": "inout"},
+      "intent": "The head tilt of a dog working something out. Two tilts, with the ears split.",
+      "beats": [
+        "0-20: nose up 16 degrees, near ear back, far ear forward, eye up. Held.",
+        "20-26: the head rolls to the second tilt; the ears swap, 2 frames late, and spring.",
+        "26-42: held. The tail tip flicks once at 32.",
+        "42-48: back to the first tilt."
+      ],
+      "tracks": {
+        "head.rot": [[0, -4], [20, -4, "hold"], [26, 2], [42, 2, "hold"], [48, -4]],
+        "skull.rot": [[0, -16], [20, -17], [26, -5], [42, -5, "hold"], [48, -16]],
+        "torso.rot": [[0, 0], [20, 0, "hold"], [26, 2], [42, 2, "hold"], [48, 0]],
+        "earL.rot": [[0, -22], [22, -22, "hold"], [30, 12, "spring"], [44, 12, "hold"], [48, -22, "out"]],
+        "earR.rot": [[0, 14], [22, 14, "hold"], [30, -18, "spring"], [44, -18, "hold"], [48, 14, "out"]],
+        "eye.y": [[0, -1.5], [20, -1.5, "hold"], [26, 0.5], [42, 0.5, "hold"], [48, -1.5]],
+        "tail.rot": [[0, -10], [32, -10, "hold"], [34, 0, "out"], [40, -10, "spring"], [48, -10, "hold"]]
+      }
+    },
+    "working": {
+      "name": "Working", "frames": 24, "enter": {"frames": 8, "ease": "out"},
+      "intent": "Nose down, on a scent. The tail keeps time at two beats a second.",
+      "beats": [
+        "Enter, 8 frames, snap: the body leans in and the nose goes down.",
+        "0-24: the neck sweeps 6 degrees along the ground and back.",
+        "0-12: two sniffs. The nose dips 6 degrees in 3 frames and eases back, twice.",
+        "0-24: the tail, held high, swings 16 degrees twice.",
+        "0-12: the ears, held back, bob 6 degrees with each sniff. One blink at 18."
+      ],
+      "tracks": {
+        "torso.rot": [[0, 4], [24, 4]],
+        "head.rot": [[0, 16], [12, 22], [24, 16]],
+        "skull.rot": [[0, 24], [3, 30, "out"], [6, 24], [9, 30, "out"], [12, 24], [24, 24]],
+        "earL.rot": [[0, -12], [4, -6], [8, -14], [12, -8], [24, -12]],
+        "earR.rot": [[0, -8], [5, -2], [9, -10], [13, -4], [24, -8]],
+        "tail.rot": [[0, 20], [6, 36], [12, 20], [18, 36], [24, 20]],
+        "eye.sy": [[0, 1], [18, 1, "hold"], [20, 0.12, "in"], [22, 1, "out"], [24, 1]]
+      }
+    },
+    "subagents": {
+      "name": "Subagents", "frames": 48, "enter": {"frames": 8, "ease": "over"},
+      "intent": "A herding dog minding its flock. One dot on the ground for each subagent running, three at most.",
+      "beats": [
+        "Enter, 8 frames: the dots fade in on the ground line; the head turns down to them.",
+        "0-8, 12-20, 24-32: each dot hops 14 pt in turn (4 frames up, 4 down).",
+        "8, 20, 32: the head nods 5 degrees as each dot lands, counting them.",
+        "36-48: the head lifts 4 degrees, then goes back to the first dot.",
+        "0-48: the tail sways 8 degrees each way, twice."
+      ],
+      "tracks": {
+        "flock.on": [[0, 1], [48, 1]],
+        "f1.y": [[0, 0], [4, -14, "out"], [8, 0, "in"], [48, 0, "hold"]],
+        "f2.y": [[0, 0], [12, 0, "hold"], [16, -14, "out"], [20, 0, "in"], [48, 0, "hold"]],
+        "f3.y": [[0, 0], [24, 0, "hold"], [28, -14, "out"], [32, 0, "in"], [48, 0, "hold"]],
+        "torso.rot": [[0, 2], [48, 2]],
+        "head.rot": [[0, 12], [36, 16], [42, 8], [48, 12]],
+        "skull.rot": [[0, 12], [6, 12, "hold"], [9, 17, "out"], [13, 12], [18, 12, "hold"], [21, 17, "out"], [25, 12], [30, 12, "hold"], [33, 17, "out"], [37, 12], [48, 12]],
+        "earL.rot": [[0, 12], [48, 12]],
+        "earR.rot": [[0, 14], [48, 14]],
+        "tail.rot": [[0, 10], [6, 18], [18, 2], [30, 18], [42, 2], [48, 10]]
+      }
+    },
+    "speaking": {
+      "name": "Speaking", "frames": 24, "enter": {"frames": 6, "ease": "out"},
+      "intent": "No mouth. The chin lifts on each syllable and the ears follow 2 frames behind.",
+      "beats": [
+        "0, 6, 12, 19: four syllables in an uneven rhythm. The chin snaps up 4 to 8 degrees in 3 frames and eases down.",
+        "The ears swing the other way at about half the size, 2 frames late.",
+        "The body rises 1.2% on the two strong syllables (3 and 15).",
+        "Live: scale the chin lift by the speech level instead of playing the loop."
+      ],
+      "tracks": {
+        "head.rot": [[0, -3], [24, -3]],
+        "skull.rot": [[0, -2], [3, -9, "out"], [6, -3], [9, -7, "out"], [12, -2], [15, -10, "out"], [19, -3], [21, -6, "out"], [24, -2]],
+        "earL.rot": [[0, -4], [5, 4], [8, -3], [11, 2], [14, -4], [17, 5], [21, -2], [24, -4]],
+        "earR.rot": [[0, -2], [6, 5], [9, -2], [12, 3], [15, -3], [18, 6], [22, -1], [24, -2]],
+        "root.sy": [[0, 1], [3, 1.012, "out"], [8, 1], [12, 1, "hold"], [15, 1.012, "out"], [20, 1], [24, 1]],
+        "tail.rot": [[0, 6], [12, 12], [24, 6]]
+      }
+    },
+    "needs": {
+      "name": "Needs You", "frames": 48, "enter": {"frames": 8, "ease": "over"},
+      "intent": "Asks without insisting: a paw lifted, pawing the air twice, the head tilted at you.",
+      "beats": [
+        "0-2: the paw presses 3 degrees into the ground (anticipation).",
+        "2-8: the paw lifts 34 degrees with overshoot; the head tilts to nose up 12.",
+        "8-26: two pawing strokes, 14 degrees each, snapping up and easing down.",
+        "26-34: held.",
+        "34-40: the paw comes down; 40-48: at rest.",
+        "0-48: the tail sways 9 degrees each way, twice."
+      ],
+      "tracks": {
+        "pawL.rot": [[0, 0], [2, 3], [8, -34, "over"], [13, -20], [17, -34, "out"], [22, -20], [26, -34, "out"], [34, -34, "hold"], [40, 0, "in"], [48, 0, "hold"]],
+        "head.rot": [[0, -3], [48, -3]],
+        "skull.rot": [[0, -6], [8, -12, "over"], [34, -12, "hold"], [42, -6], [48, -6]],
+        "earL.rot": [[0, 8], [8, 14, "over"], [34, 14, "hold"], [42, 8], [48, 8]],
+        "earR.rot": [[0, -10], [48, -10]],
+        "tail.rot": [[0, -4], [12, 14], [24, -4], [36, 14], [48, -4]]
+      }
+    },
+    "approval": {
+      "name": "Approval", "frames": 48, "enter": {"frames": 4, "ease": "out"},
+      "intent": "A dog told to stay. Rigid, pointing at the card, straining to go.",
+      "beats": [
+        "Enter, 4 frames, snap, no overshoot: it freezes leaning forward, neck out, nose level, ears locked, tail low and straight.",
+        "0-36: the body creeps 2.5 degrees further forward. No blink.",
+        "30-40: the tail quivers, 2 to 3 degrees, every 2 frames.",
+        "36-40: it catches itself and snaps back 3 degrees.",
+        "40-48: settles into the hold.",
+        "Allowed: play Done. Denied: play the entry to Idle."
+      ],
+      "tracks": {
+        "torso.rot": [[0, 4], [36, 6.5, "in"], [40, 3.5, "out"], [48, 4]],
+        "head.rot": [[0, 16], [36, 19, "in"], [40, 15, "out"], [48, 16]],
+        "skull.rot": [[0, -12], [48, -12]],
+        "earL.rot": [[0, 16], [36, 16, "hold"], [40, 20, "out"], [48, 16]],
+        "earR.rot": [[0, 18], [36, 18, "hold"], [40, 22, "out"], [48, 18]],
+        "tail.rot": [[0, -24], [30, -24, "hold"], [32, -21, "lin"], [34, -26, "lin"], [36, -22, "lin"], [38, -25, "lin"], [40, -24, "lin"], [48, -24, "hold"]]
+      }
+    },
+    "blocked": {
+      "name": "Blocked", "frames": 48, "enter": {"frames": 12, "ease": "inout"},
+      "intent": "Something failed. The head hangs, the ears lie flat, the tail drops.",
+      "beats": [
+        "Enter, 12 frames: the whole figure sinks 5%.",
+        "0-10: a shudder, 3 pt side to side, dying out.",
+        "10-30: a slow breath in, the head lifting 3 degrees.",
+        "30-48: the sigh out, the body sinking to 94%.",
+        "36-44: the near ear lifts 12 degrees and springs flat again.",
+        "The eye stays half shut."
+      ],
+      "tracks": {
+        "root.x": [[0, 0], [2, -3, "lin"], [4, 3, "lin"], [6, -2, "lin"], [8, 1, "lin"], [10, 0, "lin"], [48, 0, "hold"]],
+        "root.sy": [[0, 0.95], [10, 0.95, "hold"], [30, 0.975], [40, 0.94], [48, 0.95]],
+        "torso.rot": [[0, 3], [48, 3]],
+        "head.rot": [[0, 26], [10, 26, "hold"], [30, 23], [40, 28], [48, 26]],
+        "skull.rot": [[0, 20], [48, 20]],
+        "earL.rot": [[0, -72], [36, -72, "hold"], [38, -60, "out"], [44, -72, "spring"], [48, -72, "hold"]],
+        "earR.rot": [[0, -66], [48, -66]],
+        "tail.rot": [[0, -26], [48, -26]],
+        "eye.sy": [[0, 0.45], [48, 0.45]]
+      }
+    },
+    "done": {
+      "name": "Done", "frames": 36, "enter": {"frames": 4, "ease": "out"},
+      "intent": "One hop on the spot, then sitting proud. The tail wags four times a second throughout.",
+      "beats": [
+        "0-4: squash to 90% (anticipation).",
+        "4-10: launch. The body stretches to 105% and leaves the ground by 24 pt; the ears drag back.",
+        "10-16: the fall.",
+        "16-17: the landing, squashed to 92%; the ears whip forward.",
+        "17-27: recovery with overshoot to 103%, then rest.",
+        "27-36: sitting tall, the tail still going."
+      ],
+      "tracks": {
+        "root.y": [[0, 0], [4, 0, "hold"], [10, -24, "out"], [16, 0, "in"], [36, 0, "hold"]],
+        "root.sy": [[0, 1], [4, 0.9], [8, 1.05, "out"], [13, 1], [17, 0.92, "in"], [22, 1.03, "over"], [27, 1], [36, 1]],
+        "root.sx": [[0, 1], [4, 1.06], [8, 0.96, "out"], [13, 1], [17, 1.05, "in"], [22, 0.985, "over"], [27, 1], [36, 1]],
+        "head.rot": [[0, -6], [4, 2], [10, -12, "out"], [17, 4, "in"], [23, -6, "over"], [36, -6]],
+        "skull.rot": [[0, -6], [36, -6]],
+        "earL.rot": [[0, 6], [5, 14], [10, -26, "out"], [17, 16, "in"], [26, 6, "spring"], [36, 6, "hold"]],
+        "earR.rot": [[0, 8], [6, 16], [11, -24, "out"], [18, 18, "in"], [27, 8, "spring"], [36, 8, "hold"]],
+        "tail.rot": [[0, 10], [3, 38], [6, 10], [9, 38], [12, 10], [15, 38], [18, 10], [21, 38], [24, 10], [27, 38], [30, 10], [33, 38], [36, 10]]
+      }
+    },
+    "dizzy": {
+      "name": "Dizzy", "frames": 36, "enter": {"frames": 6, "ease": "inout"},
+      "intent": "The nose draws a circle. Everything else lags behind it.",
+      "beats": [
+        "0-36: the body sways 5 degrees each way about the ground point, once.",
+        "0-36: the neck and the skull turn a quarter of a cycle apart, so the nose goes round once.",
+        "The ears swing 20 degrees the other way, the far ear 4 frames after the near one.",
+        "The eye goes round twice, 2 pt from its centre.",
+        "The front legs brace apart; the tail hangs."
+      ],
+      "tracks": {
+        "root.rot": [[0, 0], [9, 5], [18, 0], [27, -5], [36, 0]],
+        "head.rot": [[0, 8], [9, 0], [18, -8], [27, 0], [36, 8]],
+        "skull.rot": [[0, 0], [9, -11], [18, 0], [27, 11], [36, 0]],
+        "earL.rot": [[0, -20], [9, -4], [18, 20], [27, 4], [36, -20]],
+        "earR.rot": [[0, -6], [4, -20], [13, -4], [22, 20], [31, 4], [36, -6]],
+        "eye.x": [[0, 2], [4.5, 0], [9, -2], [13.5, 0], [18, 2], [22.5, 0], [27, -2], [31.5, 0], [36, 2]],
+        "eye.y": [[0, 0], [4.5, 2], [9, 0], [13.5, -2], [18, 0], [22.5, 2], [27, 0], [31.5, -2], [36, 0]],
+        "tail.rot": [[0, -20], [18, -12], [36, -20]],
+        "pawL.rot": [[0, -7], [36, -7]],
+        "pawR.rot": [[0, 6], [36, 6]]
+      }
+    },
+    "sleep": {
+      "name": "Sleep", "frames": 60, "enter": {"frames": 24, "ease": "inout"},
+      "intent": "Chin on the chest, eye shut, dimmed to half to spare the screen.",
+      "beats": [
+        "Enter, 24 frames: the head sinks, the ears fold, the figure dims to 50%.",
+        "0-60: one slow breath, 2.5% of the body's height.",
+        "44-52: the near ear twitches 11 degrees and springs flat (a dream)."
+      ],
+      "tracks": {
+        "dim": [[0, 0.5], [60, 0.5]],
+        "root.sy": [[0, 0.93], [26, 0.955], [60, 0.93]],
+        "torso.rot": [[0, 3], [60, 3]],
+        "head.rot": [[0, 26], [28, 24], [60, 26]],
+        "skull.rot": [[0, 36], [60, 36]],
+        "earL.rot": [[0, -75], [44, -75, "hold"], [46, -64, "out"], [52, -75, "spring"], [60, -75, "hold"]],
+        "earR.rot": [[0, -70], [60, -70]],
+        "tail.rot": [[0, -24], [60, -24]],
+        "eye.sy": [[0, 0.12], [60, 0.12]]
+      }
+    }
+  },
+  "reactions": {
+    "poke": {
+      "name": "Poke", "frames": 14,
+      "intent": "A single tap. Added to whatever state is playing.",
+      "beats": [
+        "0-2: a flinch. The figure squashes 6% sideways, the nose jerks up 8 degrees, the ears pop 22 degrees forward, the eye widens.",
+        "2-8: the rebound overshoots to 103%.",
+        "8-14: the ears and tail spring to rest."
+      ],
+      "tracks": {
+        "root.sx": [[0, 0], [2, -0.06, "out"], [7, 0.03, "over"], [14, 0]],
+        "root.sy": [[0, 0], [2, 0.04, "out"], [7, -0.02, "over"], [14, 0]],
+        "skull.rot": [[0, 0], [2, -8, "out"], [8, 2, "over"], [14, 0]],
+        "earL.rot": [[0, 0], [2, 22, "out"], [14, 0, "spring"]],
+        "earR.rot": [[0, 0], [3, 22, "out"], [14, 0, "spring"]],
+        "eye.sy": [[0, 0], [2, 0.3, "out"], [8, 0], [14, 0, "hold"]],
+        "tail.rot": [[0, 0], [3, 18, "out"], [14, 0, "spring"]]
+      }
+    }
+  }
+}

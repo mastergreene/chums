@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 396 484" width="396" height="484">
+<title>Fetch, resting pose</title>
+<rect id="background" width="396" height="484" fill="#000000"/>
+<g id="fetch" data-pivot="169 418">
+  <g id="flock" opacity="0"><circle id="flock-1" cx="336" cy="404" r="7.5" fill="#A89B89"/><circle id="flock-2" cx="356" cy="404" r="7.5" fill="#A89B89"/><circle id="flock-3" cx="376" cy="404" r="7.5" fill="#A89B89"/></g>
+  <g id="tail" data-pivot="100 388"><path d="M99.6 377 Q47.1 378.8 50.5 310.3 A6.5 6.5 0 0 0 37.5 309.7 Q32.9 401.2 100.4 399 A11 11 0 0 0 99.6 377 Z" fill="#F2EEE6"/></g>
+  <g id="paw-right" data-pivot="285 280"><rect x="271" y="266" width="28" height="152" rx="14" fill="#A89B89"/><rect x="271" y="396" width="46" height="22" rx="11" fill="#A89B89"/></g>
+  <g id="torso" data-pivot="144 349">
+    <path id="torso-shape" d="M200.6 388.5 L272.8 284.9 A40 40 0 0 0 220.5 227.1 L110.3 288.8 A69 69 0 1 0 200.6 388.5 Z" fill="#F2EEE6"/>
+    <rect id="hind-foot" x="142" y="398" width="88" height="20" rx="10" fill="#F2EEE6"/>
+    <g id="head" data-pivot="242 252">
+      <path id="neck" d="M271.8 255.7 L281.8 175 A24 24 0 0 0 234.9 165.6 L213.1 244 A30 30 0 1 0 271.8 255.7 Z" fill="#F2EEE6"/>
+      <rect id="collar" x="196.8" y="223.5" width="100" height="9" fill="#000000" transform="rotate(11.3 246.8 228)"/>
+      <g id="skull" data-pivot="258 172">
+        <g id="ear-right" data-pivot="272 124"><path d="M287.3 119.4 L272.8 70.6 A5 5 0 0 0 263 71.3 L256.1 121.8 A16 16 0 1 0 287.3 119.4 Z" fill="#A89B89"/></g>
+        <path id="head-shape" d="M266.8 187.9 L331.1 183 A15 15 0 0 0 337.9 155.2 L282.9 121.4 A36 36 0 1 0 266.8 187.9 Z" fill="#F2EEE6"/>
+        <g id="ear-left" data-pivot="247 130"><path d="M261.6 123.5 L240.6 76 A5 5 0 0 0 231 78 L231 130 A16 16 0 1 0 261.6 123.5 Z" fill="#F2EEE6"/></g>
+        <g id="accent">
+          <circle cx="340" cy="159" r="7" fill="#000000" id="nose"/>
+          <g id="eye" data-pivot="287 147"><circle cx="287" cy="147" r="5.5" fill="#000000"/></g>
+        </g>
+      </g>
+    </g>
+  </g>
+  <g id="paw-left" data-pivot="268 280"><rect x="254" y="266" width="28" height="152" rx="14" fill="#F2EEE6"/><rect x="254" y="396" width="46" height="22" rx="11" fill="#F2EEE6"/></g>
+</g>
+</svg>

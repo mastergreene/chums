@@ -1,0 +1,296 @@
+<title>Fetch and Biscuit</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: the watch screen stays on the left; the state picker and that state's dope sheet run down the right. */
+/* One dark look on purpose: the character only exists on an OLED-black screen. */
+:root {
+  color-scheme: dark;
+  --page: #0d0c0b; --panel: #171513; --line: #2c2824; --screen: #000000;
+  --chalk: #F2EEE6; --stone: #A89B89; --mute: #81786c;
+  --display: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --text: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+html { background: var(--page); }
+body { background: var(--page); color: var(--chalk); font: 400 15px/1.55 var(--text); }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; margin-bottom: 24px; }
+h1 { font: 700 40px/1 var(--display); letter-spacing: -0.02em; margin: 0; }
+header p { margin: 0; color: var(--stone); flex: 1; min-width: 240px; }
+.who { display: flex; gap: 8px; }
+h2 { font: 500 12px/1.2 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); margin: 0; }
+.cols { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 36px; align-items: start; }
+.left { display: flex; flex-direction: column; gap: 14px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); }
+.right { display: flex; flex-direction: column; gap: 30px; min-width: 0; }
+section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+#stage { display: block; width: 100%; height: auto; aspect-ratio: 396 / 484; background: var(--screen); border-radius: 17%/14%;
+  outline: 1px solid var(--line); touch-action: pan-y; cursor: pointer; user-select: none; -webkit-user-select: none; }
+.readout { display: flex; justify-content: space-between; gap: 12px; font: 400 12px/1.4 var(--mono); color: var(--stone);
+  font-variant-numeric: tabular-nums; }
+.transport { display: flex; align-items: center; gap: 12px; }
+.transport input { flex: 1; min-width: 0; }
+input[type=range] { accent-color: var(--chalk); }
+button { font: 500 14px/1 var(--text); color: var(--chalk); background: transparent; border: 1px solid var(--line);
+  border-radius: 999px; padding: 10px 14px; cursor: pointer; }
+button:hover { border-color: var(--stone); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--chalk); outline-offset: 2px; }
+button[aria-pressed=true] { background: var(--chalk); border-color: var(--chalk); color: #000; }
+.states { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.states button { text-align: left; }
+.wrist { display: flex; align-items: flex-end; gap: 18px; padding-top: 6px; border-top: 1px solid var(--line); }
+.wrist figure { margin: 0; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.wrist svg { background: var(--screen); border-radius: 17%/14%; display: block; }
+.wrist figcaption, .note { font-size: 12px; color: var(--mute); }
+.wrist p { margin: 0; flex: 1; min-width: 0; }
+#intent { font: 500 20px/1.3 var(--display); margin: 0; text-wrap: balance; max-width: 34em; }
+#beats { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; max-width: 62ch; }
+#beats li { display: grid; grid-template-columns: 9.5em minmax(0, 1fr); gap: 12px; color: var(--stone); }
+#beats b { font: 400 12px/1.9 var(--mono); color: var(--chalk); font-variant-numeric: tabular-nums; }
+.sheetbox { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+#sheet { min-width: 520px; padding: 12px 14px 14px; position: relative; font: 400 11px/1 var(--mono); }
+.row { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: center; height: 22px; }
+.row span { color: var(--stone); }
+.lane { position: relative; height: 100%; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+.lane::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid var(--line); }
+.key { position: absolute; top: 50%; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; background: var(--chalk); transform: rotate(45deg); }
+.key.hold { background: var(--panel); outline: 1px solid var(--stone); }
+.key.snap { background: var(--stone); border-radius: 50%; }
+.tick { position: absolute; top: 4px; transform: translateX(-50%); color: var(--mute); }
+.ruler { height: 20px; }
+#head { position: absolute; top: 30px; bottom: 12px; width: 1px; background: var(--chalk); pointer-events: none; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--mute); }
+.legend i { display: inline-block; width: 7px; height: 7px; margin-right: 7px; background: var(--chalk); transform: rotate(45deg); }
+.legend i.hold { background: transparent; outline: 1px solid var(--stone); }
+.legend i.snap { background: var(--stone); border-radius: 50%; }
+.touch { display: flex; flex-direction: column; gap: 10px; max-width: 62ch; color: var(--stone); }
+.touch p { margin: 0; }
+.crown { display: flex; align-items: center; gap: 12px; }
+.crown label { font: 400 12px/1 var(--mono); color: var(--stone); }
+.crown input { flex: 1; min-width: 0; max-width: 320px; }
+table { border-collapse: collapse; font: 400 12px/1.5 var(--mono); width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 5px 14px 5px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--mute); font-weight: 400; }
+td { color: var(--stone); }
+td:first-child { color: var(--chalk); }
+.tablebox { overflow-x: auto; }
+.swatches { display: flex; flex-wrap: wrap; gap: 10px 22px; font: 400 12px/1.2 var(--mono); color: var(--stone); }
+.swatches span { display: flex; align-items: center; gap: 8px; }
+.swatches i { width: 18px; height: 18px; border-radius: 50%; outline: 1px solid var(--line); }
+@media (max-width: 760px) {
+  .cols { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .left { position: static; max-width: 300px; }
+  h1 { font-size: 32px; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1 id="name">Fetch</h1>
+    <p>Two characters for Chums on one rig. Twelve states at 24 frames a second, on a 396 × 484 pt screen.</p>
+    <div class="who" id="who"></div>
+  </header>
+
+  <div class="cols">
+    <div class="left">
+      <svg id="stage" viewBox="0 0 396 484" role="img" aria-label="The character, playing the selected state"></svg>
+      <div class="readout"><span id="rframe">frame 0 / 60</span><span id="rdur">2.5 s loop</span></div>
+      <div class="transport">
+        <button id="pause" type="button" aria-pressed="false">Pause</button>
+        <input id="scrub" type="range" min="0" max="60" step="1" value="0" aria-label="Frame">
+      </div>
+      <div class="wrist">
+        <figure><svg viewBox="0 0 396 484" width="60" height="73" aria-hidden="true"><use class="mini"/></svg><figcaption>1 m</figcaption></figure>
+        <figure><svg viewBox="0 0 396 484" width="30" height="37" aria-hidden="true"><use class="mini"/></svg><figcaption>2 m</figcaption></figure>
+        <p class="note">How big a 40 mm watch looks from 1 m and 2 m, on a monitor 60 cm away.</p>
+      </div>
+    </div>
+
+    <div class="right">
+      <section>
+        <h2>States</h2>
+        <div class="states" id="states"></div>
+      </section>
+
+      <section>
+        <p id="intent"></p>
+        <ul id="beats"></ul>
+      </section>
+
+      <section>
+        <h2>Dope sheet</h2>
+        <div class="sheetbox"><div id="sheet"></div></div>
+        <div class="legend">
+          <span><i></i>eased key</span><span><i class="snap"></i>snap, overshoot or spring</span><span><i class="hold"></i>hold</span>
+          <span>Click the sheet to move the playhead.</span>
+        </div>
+      </section>
+
+      <section>
+        <h2>Touch and crown</h2>
+        <div class="touch">
+          <p>Tap the dog to poke it. Stroke across it to pet it. Scroll over it, or drag the slider, to turn the crown: up and it sits tall, down and it bows. Turn it fast and it gets dizzy.</p>
+          <div class="crown"><label for="crown">Crown</label><input id="crown" type="range" min="-100" max="100" value="0"><button id="poke" type="button">Poke</button></div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Rig</h2>
+        <div class="swatches" id="swatches"></div>
+        <div class="tablebox"><table id="rig"><thead><tr><th>Layer</th><th>Parent</th><th>Pivot (pt)</th><th>Driven by</th></tr></thead><tbody></tbody></table></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+const M = /*MOTION*/;
+const RIGS = /*RIGS*/;
+let who = 'fetch';
+const FPS = M.fps, DEF = { 'root.sx': 1, 'root.sy': 1, 'eye.sy': 1 };
+const CH = Object.keys(M.channels);
+
+// ---- easing ----
+function bez(x1, y1, x2, y2) {
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx, cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  return x => { let lo = 0, hi = 1, t = x;
+    for (let i = 0; i < 24; i++) { const v = ((ax * t + bx) * t + cx) * t; if (Math.abs(v - x) < 1e-5) break; v < x ? lo = t : hi = t; t = (lo + hi) / 2; }
+    return ((ay * t + by) * t + cy) * t; };
+}
+const E = { lin: t => t, inout: bez(.45, 0, .55, 1), in: bez(.55, 0, 1, .45), out: bez(.16, 1, .3, 1),
+  antic: bez(.36, 0, .66, -.56), over: bez(.34, 1.56, .64, 1),
+  spring: t => t >= 1 ? 1 : 1 - Math.exp(-6 * t) * Math.cos(4 * Math.PI * t), hold: t => t >= 1 ? 1 : 0 };
+function sample(keys, f) {
+  if (f <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) if (f <= keys[i][0]) {
+    const a = keys[i - 1], b = keys[i];
+    return a[1] + (b[1] - a[1]) * E[b[2] || 'inout']((f - a[0]) / (b[0] - a[0]));
+  }
+  return keys[keys.length - 1][1];
+}
+function poseOf(tracks, f, additive) {
+  const p = {};
+  for (const c of CH) p[c] = tracks[c] ? sample(tracks[c], f) : (additive ? 0 : (DEF[c] ?? 0));
+  return p;
+}
+
+// ---- the rig ----
+const $ = id => document.getElementById(id);
+const piv = id => $(id).dataset.pivot.split(' ').map(Number);
+const rot = (id, a) => { const [x, y] = piv(id); $(id).setAttribute('transform', `rotate(${a.toFixed(3)} ${x} ${y})`); };
+function apply(p) {
+  const [gx, gy] = piv(who);
+  $(who).setAttribute('transform', `translate(${p['root.x']} ${p['root.y']}) rotate(${p['root.rot']} ${gx} ${gy}) translate(${gx} ${gy}) scale(${p['root.sx']} ${p['root.sy']}) translate(${-gx} ${-gy})`);
+  $(who).setAttribute('opacity', 1 - p.dim);
+  rot('torso', p['torso.rot']); rot('head', p['head.rot']); rot('skull', p['skull.rot']);
+  rot('ear-left', p['earL.rot']); rot('ear-right', p['earR.rot']); rot('tail', p['tail.rot']);
+  rot('paw-left', p['pawL.rot']); rot('paw-right', p['pawR.rot']);
+  const [ex, ey] = piv('eye');
+  $('eye').setAttribute('transform', `translate(${ex + p['eye.x']} ${ey + p['eye.y']}) scale(1 ${Math.max(.1, p['eye.sy'])}) translate(${-ex} ${-ey})`);
+  $('flock').setAttribute('opacity', Math.max(0, Math.min(1, p['flock.on'])));
+  [1, 2, 3].forEach(i => $('flock-' + i).setAttribute('transform', `translate(0 ${p['f' + i + '.y']})`));
+}
+
+// ---- playback ----
+let cur = 'idle', t0 = performance.now(), from = null, shown = poseOf(M.states.idle.tracks, 0);
+let paused = matchMedia('(prefers-reduced-motion: reduce)').matches, frame = 0, last = performance.now();
+let pokeAt = -1e9, pet = 0, petting = false, petX = .5, crown = 0, crownAt = 0, spin = 0, back = null;
+function setState(id, keepBack) {
+  if (!keepBack) back = null;
+  from = { ...shown }; cur = id; t0 = performance.now(); frame = 0;
+  document.querySelectorAll('#states button').forEach(b => b.setAttribute('aria-pressed', b.dataset.id === id));
+  describe();
+}
+function tick(now) {
+  const dt = Math.min(.1, (now - last) / 1000); last = now;
+  const S = M.states[cur];
+  if (!paused) frame += dt * FPS;
+  const p = poseOf(S.tracks, frame % S.frames);
+  if (from) {
+    const k = Math.min(1, frame / S.enter.frames);
+    if (k >= 1 || paused) from = null;
+    else { const e = E[S.enter.ease](k); for (const c of CH) p[c] = from[c] + (p[c] - from[c]) * e; }
+  }
+  const G = RIGS[who].gain; for (const c in G) p[c] *= G[c];
+  // poke: a one-shot added on top
+  const pf = (now - pokeAt) / 1000 * FPS, P = M.reactions.poke;
+  if (pf < P.frames) { const a = poseOf(P.tracks, pf, true); for (const c of CH) p[c] += a[c]; }
+  // pet: follows the finger, 18 frames to let go
+  pet += ((petting ? 1 : 0) - pet) * Math.min(1, dt * (petting ? 12 : 4));
+  if (pet > .002) {
+    const w = Math.sin(now / 1000 * Math.PI * 4);
+    p['earL.rot'] += (-52 - p['earL.rot']) * pet; p['earR.rot'] += (-46 - p['earR.rot']) * pet;
+    p['eye.sy'] += (.12 - p['eye.sy']) * pet;
+    p['skull.rot'] += (6 + (petX - .5) * 10) * pet; p['head.rot'] += 5 * pet; p['root.sy'] -= .02 * pet;
+    p['tail.rot'] += (16 + 14 * w) * pet;
+  }
+  // crown: up sits tall, down bows; let go and it comes back
+  if (now - crownAt > 500 && crown) { crown *= Math.exp(-dt * 7); if (Math.abs(crown) < .004) crown = 0; $('crown').value = crown * 100; }
+  spin *= Math.exp(-dt * 2.5);
+  if (crown > 0) { p['head.rot'] -= 10 * crown; p['skull.rot'] -= 9 * crown; p['root.sy'] += .04 * crown; p['earL.rot'] += 10 * crown; p['earR.rot'] += 10 * crown; }
+  if (crown < 0) { p['head.rot'] -= 28 * crown; p['torso.rot'] -= 4 * crown; p['skull.rot'] -= 6 * crown; p['tail.rot'] -= 18 * crown; }
+  if (spin > 3.2 && cur !== 'dizzy') { const b = cur; setState('dizzy', true); back = { id: b, at: now + 2200 }; spin = 0; }
+  if (back && now > back.at && cur === 'dizzy') { const b = back.id; back = null; setState(b); }
+  shown = p; apply(p); readout(S);
+  requestAnimationFrame(tick);
+}
+function readout(S) {
+  const f = Math.floor(frame % S.frames);
+  $('rframe').textContent = `frame ${String(f).padStart(2, '0')} / ${S.frames}`;
+  if (document.activeElement !== $('scrub')) $('scrub').value = f;
+  $('head').style.left = `calc(14px + 76px + (100% - 28px - 76px) * ${(frame % S.frames) / S.frames})`;
+}
+
+// ---- the page around it ----
+function describe() {
+  const S = M.states[cur];
+  $('rdur').textContent = `${(S.frames / FPS).toFixed(2).replace(/0$/, '')} s loop, enter ${S.enter.frames} f ${S.enter.ease}`;
+  $('scrub').max = S.frames - 1;
+  $('intent').textContent = S.intent;
+  $('beats').innerHTML = S.beats.map(b => { const m = b.match(/^([^:]{1,20}):\s*(.*)$/); return m ? `<li><b>${m[1]}</b><span>${m[2]}</span></li>` : `<li><b></b><span>${b}</span></li>`; }).join('');
+  const lane = (keys) => keys.map(k => { const e = k[2] || 'inout';
+    const cls = e === 'hold' ? ' hold' : (['out', 'over', 'spring', 'antic'].includes(e) ? ' snap' : '');
+    return `<i class="key${cls}" style="left:${k[0] / S.frames * 100}%" title="frame ${k[0]}: ${k[1]} (${e})"></i>`; }).join('');
+  let ticks = ''; for (let f = 0; f <= S.frames; f += 6) ticks += `<span class="tick" style="left:${f / S.frames * 100}%">${f}</span>`;
+  $('sheet').innerHTML = `<div class="row ruler"><span>frame</span><div class="lane" style="border:0">${ticks}</div></div>` +
+    Object.entries(S.tracks).map(([c, k]) => `<div class="row"><span>${c}</span><div class="lane">${lane(k)}</div></div>`).join('') + '<div id="head"></div>';
+}
+$('states').innerHTML = Object.entries(M.states).map(([id, s]) => `<button type="button" data-id="${id}" aria-pressed="${id === cur}">${s.name}</button>`).join('');
+$('states').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setState(b.dataset.id); });
+$('pause').addEventListener('click', () => { paused = !paused; $('pause').setAttribute('aria-pressed', paused); $('pause').textContent = paused ? 'Play' : 'Pause'; });
+$('scrub').addEventListener('input', e => { frame = +e.target.value; from = null; });
+$('sheet').addEventListener('click', e => { const r = $('sheet').getBoundingClientRect(), x = (e.clientX - r.left - 90) / (r.width - 104);
+  if (x >= 0 && x <= 1) { frame = x * M.states[cur].frames; from = null; } });
+const pokes = [];
+function poke() { const now = performance.now(); pokeAt = now; pokes.push(now); while (now - pokes[0] > 3000) pokes.shift();
+  if (pokes.length >= 4 && cur !== 'dizzy') { pokes.length = 0; const b = cur; setState('dizzy', true); back = { id: b, at: now + 1500 }; } }
+$('poke').addEventListener('click', poke);
+$('crown').addEventListener('input', e => turn(e.target.value / 100 - crown));
+function turn(d) { crown = Math.max(-1, Math.min(1, crown + d)); crownAt = performance.now(); spin += Math.abs(d); $('crown').value = crown * 100; }
+const stage = $('stage'); let down = null;
+stage.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; });
+stage.addEventListener('pointermove', e => { if (!down) return;
+  if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) petting = true;
+  const r = stage.getBoundingClientRect(); petX = (e.clientX - r.left) / r.width; });
+const up = () => { if (down && !petting) poke(); down = null; petting = false; };
+stage.addEventListener('pointerup', up); stage.addEventListener('pointerleave', () => { down = null; petting = false; });
+stage.addEventListener('pointercancel', () => { down = null; petting = false; });
+stage.addEventListener('wheel', e => { e.preventDefault(); turn(-e.deltaY * .0025); }, { passive: false });
+
+const RIG = [['root', 'none', 'root.x, root.y, root.rot, root.sx, root.sy, dim'], ['torso', 'root', 'torso.rot'], ['head', 'torso', 'head.rot'],
+  ['skull', 'head', 'skull.rot'], ['ear-left', 'skull', 'earL.rot'], ['ear-right', 'skull', 'earR.rot'], ['eye', 'skull (in accent)', 'eye.x, eye.y, eye.sy'],
+  ['paw-left', 'root', 'pawL.rot'], ['paw-right', 'root', 'pawR.rot'], ['tail', 'root', 'tail.rot'], ['flock', 'root', 'flock.on, f1.y, f2.y, f3.y']];
+function cast(id) {
+  who = id; $('stage').innerHTML = RIGS[id].svg; $('name').textContent = RIGS[id].name;
+  document.querySelectorAll('use.mini').forEach(u => u.setAttribute('href', '#' + id));
+  document.querySelectorAll('#who button').forEach(b => b.setAttribute('aria-pressed', b.dataset.id === id));
+  $('swatches').innerHTML = RIGS[id].colors.map(([n, h]) => `<span><i style="background:${h}"></i>${n} ${h}</span>`).join('');
+  document.querySelector('#rig tbody').innerHTML = RIG.map(([g, par, ch]) => { const el = $(g === 'root' ? id : g), name = g === 'root' ? id : g;
+    return `<tr><td>${name}</td><td>${par === 'root' ? id : par}</td><td>${el.dataset.pivot ? el.dataset.pivot.replace(' ', ', ') : 'none'}</td><td>${ch}</td></tr>`; }).join('');
+}
+$('who').innerHTML = Object.entries(RIGS).map(([id, r]) => `<button type="button" data-id="${id}">${r.name}</button>`).join('');
+$('who').addEventListener('click', e => { const b = e.target.closest('button'); if (b) cast(b.dataset.id); });
+cast('fetch'); describe(); requestAnimationFrame(tick);
+window.__fetch = { cast, setState, at: f => { frame = f; from = null; paused = true; } };
+</script>
